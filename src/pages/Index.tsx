@@ -2,15 +2,14 @@ import * as React from "react";
 import { TopBar } from "@/components/TopBar";
 import { BottomNav, type TabKey } from "@/components/BottomNav";
 import { HomeScreen } from "@/components/screens/HomeScreen";
-import { SwapScreen } from "@/components/screens/SwapScreen";
-import { StakeScreen } from "@/components/screens/StakeScreen";
-import { PoolsScreen } from "@/components/screens/PoolsScreen";
-import { TOKENS } from "@/data/mock";
+import { DensScreen } from "@/components/screens/DensScreen";
+import { FoxChatScreen } from "@/components/screens/FoxChatScreen";
+import { ProfileScreen } from "@/components/screens/ProfileScreen";
+import { PROFILE, TOKENS } from "@/data/mock";
 
 const Index = () => {
   const [tab, setTab] = React.useState<TabKey>("home");
 
-  // Compute portfolio from mock balances
   const portfolioUsd = React.useMemo(
     () => TOKENS.reduce((sum, t) => sum + t.balance * t.priceUsd, 0),
     [],
@@ -19,7 +18,13 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-md">
-        <TopBar level={7} xp={420} xpNext={750} streak={5} username="Alex" />
+        <TopBar
+          level={PROFILE.level}
+          xp={PROFILE.xp}
+          xpNext={PROFILE.xpNext}
+          streak={PROFILE.streak}
+          username={PROFILE.name}
+        />
         <div key={tab}>
           {tab === "home" && (
             <HomeScreen
@@ -28,9 +33,9 @@ const Index = () => {
               onNavigate={setTab}
             />
           )}
-          {tab === "swap" && <SwapScreen />}
-          {tab === "stake" && <StakeScreen />}
-          {tab === "pools" && <PoolsScreen />}
+          {tab === "dens" && <DensScreen />}
+          {tab === "fox" && <FoxChatScreen />}
+          {tab === "profile" && <ProfileScreen />}
         </div>
       </main>
       <BottomNav active={tab} onChange={setTab} />
