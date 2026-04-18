@@ -1,96 +1,85 @@
+@import "@fontsource/fredoka/400.css";
+@import "@fontsource/fredoka/500.css";
+@import "@fontsource/fredoka/600.css";
+@import "@fontsource/fredoka/700.css";
+@import "@fontsource/nunito/400.css";
+@import "@fontsource/nunito/600.css";
+@import "@fontsource/nunito/700.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
+/* FoxFi — Gamified DeFi wealth on TON
+   Soft pastels, no gradients, no harsh neons. Mobile-first.
+   All colors HSL.
 */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Surfaces */
+    --background: 36 60% 97%;            /* warm cream */
+    --foreground: 25 30% 22%;            /* warm brown text */
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 25 30% 22%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 25 30% 22%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Brand — soft coral / peach (fox) */
+    --primary: 14 85% 70%;               /* soft coral */
+    --primary-foreground: 25 40% 18%;
+    --primary-soft: 18 100% 92%;         /* peach tint */
+    --primary-deep: 12 65% 55%;          /* shadow / press */
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary — butter yellow (coins / XP) */
+    --secondary: 42 95% 78%;
+    --secondary-foreground: 30 50% 22%;
+    --secondary-soft: 45 100% 92%;
+    --secondary-deep: 36 80% 58%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Accent — soft sky blue (TON) */
+    --accent: 200 75% 80%;
+    --accent-foreground: 210 40% 22%;
+    --accent-soft: 200 80% 94%;
+    --accent-deep: 205 55% 60%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Muted */
+    --muted: 36 40% 94%;
+    --muted-foreground: 25 15% 50%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Status (kept soft) */
+    --success: 145 45% 65%;              /* sage, not neon */
+    --success-foreground: 145 40% 20%;
+    --warning: 35 90% 70%;
+    --warning-foreground: 30 50% 22%;
+    --destructive: 4 70% 68%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Borders / inputs */
+    --border: 28 40% 88%;
+    --input: 28 40% 88%;
+    --ring: 14 85% 70%;
 
-    --radius: 0.5rem;
+    --radius: 1.25rem;
 
-    --sidebar-background: 0 0% 98%;
+    /* Game tokens — chunky shadows for Brawl-Stars depth */
+    --shadow-pop: 0 6px 0 0 hsl(14 50% 75%);
+    --shadow-pop-secondary: 0 6px 0 0 hsl(36 60% 70%);
+    --shadow-pop-accent: 0 6px 0 0 hsl(205 45% 70%);
+    --shadow-pop-muted: 0 4px 0 0 hsl(28 35% 82%);
+    --shadow-card: 0 8px 24px -8px hsl(25 30% 30% / 0.12);
+    --shadow-soft: 0 2px 12px -2px hsl(25 30% 30% / 0.08);
 
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-background: 36 60% 97%;
+    --sidebar-foreground: 25 30% 22%;
+    --sidebar-primary: 14 85% 70%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 36 40% 94%;
+    --sidebar-accent-foreground: 25 30% 22%;
+    --sidebar-border: 28 40% 88%;
+    --sidebar-ring: 14 85% 70%;
   }
 }
 
@@ -99,7 +88,56 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html, body, #root {
+    height: 100%;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-family: "Nunito", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none;
+  }
+
+  h1, h2, h3, h4, h5, .font-display {
+    font-family: "Fredoka", system-ui, sans-serif;
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer components {
+  .game-card {
+    @apply bg-card rounded-3xl border-2 border-border;
+    box-shadow: var(--shadow-card);
+  }
+
+  .pop-shadow {
+    box-shadow: var(--shadow-pop);
+  }
+  .pop-shadow-secondary {
+    box-shadow: var(--shadow-pop-secondary);
+  }
+  .pop-shadow-accent {
+    box-shadow: var(--shadow-pop-accent);
+  }
+  .pop-shadow-muted {
+    box-shadow: var(--shadow-pop-muted);
+  }
+
+  .press-effect {
+    @apply transition-transform duration-100 active:translate-y-[3px] active:shadow-none;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .safe-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
   }
 }
