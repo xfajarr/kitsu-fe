@@ -1,14 +1,14 @@
 import * as React from "react";
-import { Home, ArrowLeftRight, Sprout, Gem } from "lucide-react";
+import { Home, Vault, MessageCircleHeart, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type TabKey = "home" | "swap" | "stake" | "pools";
+export type TabKey = "home" | "dens" | "fox" | "profile";
 
 const tabs: { key: TabKey; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
   { key: "home", label: "Home", Icon: Home },
-  { key: "swap", label: "Swap", Icon: ArrowLeftRight },
-  { key: "stake", label: "Stake", Icon: Sprout },
-  { key: "pools", label: "Pools", Icon: Gem },
+  { key: "dens", label: "Dens", Icon: Vault },
+  { key: "fox", label: "Foxy", Icon: MessageCircleHeart },
+  { key: "profile", label: "Me", Icon: User },
 ];
 
 type Props = {
