@@ -1,8 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, type User } from '@/lib/api';
 import { queryKeys } from '@/lib/queryKeys';
+import { notifyAuthChanged, useAuthToken } from '@/hooks/useAuthToken';
 
 export function useUser() {
+  const token = useAuthToken();
   return useQuery({
     queryKey: queryKeys.user,
     queryFn: async () => {
@@ -10,6 +12,7 @@ export function useUser() {
       return response.data.data.user;
     },
     retry: false,
+    enabled: !!token,
   });
 }
 
@@ -24,6 +27,7 @@ export function useConnectWallet() {
     onSuccess: (data) => {
       localStorage.setItem('auth_token', data.token);
       queryClient.setQueryData(queryKeys.user, data.user);
+      notifyAuthChanged();
     },
   });
 }

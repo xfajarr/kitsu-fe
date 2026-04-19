@@ -29,7 +29,7 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('auth_token');
-      // Could trigger a re-auth flow here
+      window.dispatchEvent(new Event('kitsu-auth-change'));
     }
     return Promise.reject(error);
   }
@@ -65,7 +65,13 @@ export interface User {
 export interface Goal {
   id: string;
   title: string;
+  description: string | null;
   emoji: string | null;
+  visibility: 'private' | 'public';
+  strategy: 'tonstakers' | 'stonfi';
+  contractAddress: string | null;
+  targetTon: string;
+  currentTon: string;
   targetUsd: string;
   currentUsd: string;
   dueDate: string | null;
@@ -73,17 +79,30 @@ export interface Goal {
   createdAt: string;
 }
 
+export interface TonConnectTxParams {
+  messages: Array<{
+    address: string;
+    amount: string;
+    payload?: string;
+    stateInit?: string;
+  }>;
+}
+
 // Den types
 export interface Den {
   id: string;
+  ownerId: string;
   name: string;
   emoji: string | null;
   isPublic: boolean;
   strategy: 'steady' | 'adventurous';
+  contractAddress: string | null;
   apr: string;
   totalDeposited: string;
   memberCount: number;
   createdAt: string;
+  /** Present on GET /dens/mine — user's total deposited TON in this den */
+  myDepositTon?: string;
 }
 
 export interface DenWithMembers extends Den {
@@ -125,6 +144,7 @@ export interface Transaction {
   amount: string;
   status: 'pending' | 'completed' | 'failed';
   txHash?: string;
+  txParams?: TonConnectTxParams;
   createdAt: string;
 }
 
@@ -151,10 +171,10 @@ export const apiClient = {
   getGoals: () =>
     api.get<ApiResponse<{ goals: Goal[] }>>('/goals'),
   
-  createGoal: (data: { title: string; emoji?: string; targetUsd: string; dueDate?: string }) =>
-    api.post<ApiResponse<{ goal: Goal }>>('/goals', data),
+  createGoal: (data: { title: string; description?: string; emoji?: string; targetTon: string; visibility: 'private' | 'public'; strategy: 'tonstakers' | 'stonfi'; dueDate?: string }) =>
+    api.post<ApiResponse<{ goal: Goal; txParams: TonConnectTxParams }>>('/goals', data),
   
-  updateGoal: (id: string, data: Partial<{ title: string; emoji: string; targetUsd: string; dueDate: string | null }>) =>
+  updateGoal: (id: string, data: Partial<{ title: string; description: string; emoji: string; targetTon: string; visibility: 'private' | 'public'; strategy: 'tonstakers' | 'stonfi'; dueDate: string | null }>) =>
     api.patch<ApiResponse<{ goal: Goal }>>(`/goals/${id}`, data),
   
   deleteGoal: (id: string) =>
@@ -171,10 +191,10 @@ export const apiClient = {
     api.get<ApiResponse<{ den: DenWithMembers }>>(`/dens/${id}`),
   
   createDen: (data: { name: string; emoji?: string; isPublic: boolean; strategy: 'steady' | 'adventurous' }) =>
-    api.post<ApiResponse<{ den: Den }>>('/dens', data),
+    api.post<ApiResponse<{ den: Den; txParams: TonConnectTxParams }>>('/dens', data),
   
   joinDen: (id: string, amountTon: string) =>
-    api.post<ApiResponse<{ deposit: { denId: string; amount: string; txParams: { to: string; amount: string; payload: string } } }>>(`/dens/${id}/join`, { amountTon }),
+    api.post<ApiResponse<{ deposit: { denId: string; amount: string; txParams: TonConnectTxParams } }>>(`/dens/${id}/join`, { amountTon }),
   
   leaveDen: (id: string) =>
     api.post<ApiResponse<{ left: boolean }>>(`/dens/${id}/leave`),

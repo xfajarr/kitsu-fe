@@ -1,14 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, type Goal } from '@/lib/api';
 import { queryKeys } from '@/lib/queryKeys';
+import { useAuthToken } from '@/hooks/useAuthToken';
 
 export function useGoals() {
+  const token = useAuthToken();
   return useQuery({
     queryKey: queryKeys.goals,
     queryFn: async (): Promise<Goal[]> => {
       const response = await apiClient.getGoals();
       return response.data.data.goals;
     },
+    enabled: !!token,
   });
 }
 
@@ -16,9 +19,9 @@ export function useCreateGoal() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (data: { title: string; emoji?: string; targetUsd: string; dueDate?: string }) => {
+    mutationFn: async (data: { title: string; description?: string; emoji?: string; targetTon: string; visibility: 'private' | 'public'; strategy: 'tonstakers' | 'stonfi'; dueDate?: string }) => {
       const response = await apiClient.createGoal(data);
-      return response.data.data.goal;
+      return response.data.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.goals });

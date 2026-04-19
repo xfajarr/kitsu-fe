@@ -1,7 +1,5 @@
 {
   "url": "https://kitsu-sand.vercel.app",
   "name": "Kitsu",
-  "iconUrl": "https://kitsu-sand.vercel.app/icon-192.png",
-  "termsOfUseUrl": "https://kitsu-sand.vercel.app/terms",
-  "privacyPolicyUrl": "https://kitsu-sand.vercel.app/privacy"
+  "iconUrl": "https://kitsu-sand.vercel.app/kitsu-icon.png"
 }

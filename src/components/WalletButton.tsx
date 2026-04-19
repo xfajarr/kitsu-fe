@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Wallet, ChevronDown, Copy, LogOut, Check, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { notifyAuthChanged } from "@/hooks/useAuthToken";
 
 export function WalletButton() {
   const { address, connected, connecting, connect, disconnect, shortenAddress } = useWallet();
@@ -76,7 +77,11 @@ export function WalletButton() {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={disconnect}
+          onClick={async () => {
+            localStorage.removeItem("auth_token");
+            notifyAuthChanged();
+            await disconnect();
+          }}
           className="gap-2 cursor-pointer text-destructive focus:text-destructive"
         >
           <LogOut className="w-4 h-4" />

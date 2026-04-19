@@ -1,4 +1,4 @@
-import { useTonConnectUI, useTonWallet } from '@tonconnect/ui-react';
+import { useTonConnectModal, useTonConnectUI, useTonWallet } from '@tonconnect/ui-react';
 import { useCallback, useMemo } from 'react';
 
 export interface UseWalletReturn {
@@ -14,13 +14,15 @@ export interface UseWalletReturn {
       address: string;
       amount: string;
       payload?: string;
+      stateInit?: string;
     }>;
   }) => Promise<{ boc: string } | null>;
   shortenAddress: (addr: string) => string;
 }
 
 export function useWallet(): UseWalletReturn {
-  const [tonConnectUI, setOptions] = useTonConnectUI();
+  const [tonConnectUI] = useTonConnectUI();
+  const { open } = useTonConnectModal();
   const wallet = useTonWallet();
 
   const connected = useMemo(() => !!wallet, [wallet]);
@@ -30,12 +32,12 @@ export function useWallet(): UseWalletReturn {
 
   const connect = useCallback(async () => {
     try {
-      await tonConnectUI.connectWallet();
+      open();
     } catch (error) {
       console.error('Failed to connect wallet:', error);
       throw error;
     }
-  }, [tonConnectUI]);
+  }, [open]);
 
   const disconnect = useCallback(async () => {
     try {
@@ -52,6 +54,7 @@ export function useWallet(): UseWalletReturn {
       address: string;
       amount: string;
       payload?: string;
+      stateInit?: string;
     }>;
   }) => {
     if (!wallet) {

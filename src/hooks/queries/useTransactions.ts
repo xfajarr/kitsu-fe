@@ -1,14 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient, type Transaction } from '@/lib/api';
 import { queryKeys } from '@/lib/queryKeys';
+import { useAuthToken } from '@/hooks/useAuthToken';
 
 export function useTransactions() {
+  const token = useAuthToken();
   return useQuery({
     queryKey: queryKeys.transactions,
     queryFn: async (): Promise<Transaction[]> => {
       const response = await apiClient.getTransactionHistory();
       return response.data.data.transactions;
     },
+    enabled: !!token,
   });
 }
 
@@ -23,6 +26,7 @@ export function useDeposit() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.portfolio });
       queryClient.invalidateQueries({ queryKey: queryKeys.transactions });
+      queryClient.invalidateQueries({ queryKey: queryKeys.goals });
     },
   });
 }
@@ -38,6 +42,7 @@ export function useWithdraw() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.portfolio });
       queryClient.invalidateQueries({ queryKey: queryKeys.transactions });
+      queryClient.invalidateQueries({ queryKey: queryKeys.goals });
     },
   });
 }

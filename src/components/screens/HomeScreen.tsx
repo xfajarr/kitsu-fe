@@ -2,18 +2,48 @@ import * as React from "react";
 import { FoxBuddy } from "@/components/FoxBuddy";
 import { PopButton } from "@/components/PopButton";
 import { XPBar } from "@/components/XPBar";
-import { QUESTS, TOKENS } from "@/data/mock";
-import { ArrowUpRight, Sparkles, ChevronRight, Vault, MessageCircleHeart, Wallet } from "lucide-react";
+import { ArrowUpRight, Sparkles, ChevronRight, Vault, MessageCircleHeart, Wallet, Loader2 } from "lucide-react";
 import treasureChest from "@/assets/treasure-chest.png";
 import type { TabKey } from "@/components/BottomNav";
+import { usePortfolio, useQuests } from "@/hooks/queries";
+import { useAuthToken } from "@/hooks/useAuthToken";
 
 type Props = {
-  portfolioUsd: number;
-  dayChangePct: number;
   onNavigate: (tab: TabKey) => void;
 };
 
-export const HomeScreen: React.FC<Props> = ({ portfolioUsd, dayChangePct, onNavigate }) => {
+function AssetIcon({ symbol }: { symbol: string }) {
+  const s = symbol.toUpperCase();
+  const wrap = "w-10 h-10 rounded-2xl bg-muted border-2 border-border flex items-center justify-center shrink-0 p-1.5";
+  if (s === "TON") {
+    return (
+      <div className={wrap}>
+        <img src="/TON-white-icon.svg" alt="" className="w-7 h-7 object-contain" />
+      </div>
+    );
+  }
+  if (s === "USDT" || s === "USD₮") {
+    return (
+      <div className={wrap}>
+        <img src="/tether-usdt-logo.svg" alt="" className="w-7 h-7 object-contain" />
+      </div>
+    );
+  }
+  return (
+    <div className={wrap}>
+      <img src="/placeholder.svg" alt="" className="w-7 h-7 object-contain opacity-80" />
+    </div>
+  );
+}
+
+export const HomeScreen: React.FC<Props> = ({ onNavigate }) => {
+  const token = useAuthToken();
+  const { data: portfolioData, isLoading: portfolioLoading } = usePortfolio();
+  const { data: questsData, isLoading: questsLoading } = useQuests();
+
+  const portfolio = portfolioData?.portfolio;
+  const quests = questsData?.quests || [];
+
   const greeting = React.useMemo(() => {
     const tips = [
       "Pop a few coins into a Money Den today — even $5 starts growing!",
@@ -22,6 +52,15 @@ export const HomeScreen: React.FC<Props> = ({ portfolioUsd, dayChangePct, onNavi
     ];
     return tips[new Date().getDay() % tips.length];
   }, []);
+
+  const loading = !!token && (portfolioLoading || questsLoading);
+  if (loading) {
+    return (
+      <div className="px-4 pt-2 pb-28 flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 pt-2 pb-28 space-y-5 animate-fade-in">
@@ -37,11 +76,11 @@ export const HomeScreen: React.FC<Props> = ({ portfolioUsd, dayChangePct, onNavi
           </p>
           <div className="flex items-end gap-2 mt-1">
             <h1 className="font-display text-4xl font-bold tabular-nums">
-              ${portfolioUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              ${portfolio?.totalUsd?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || "0.00"}
             </h1>
-            <span className="chip bg-success/30 text-success-foreground mb-1.5">
+            <span className={`chip mb-1.5 ${portfolio?.dayChangePct && portfolio.dayChangePct >= 0 ? 'bg-success/30 text-success-foreground' : 'bg-destructive/30 text-destructive'}`}>
               <ArrowUpRight className="w-3 h-3" />
-              {dayChangePct.toFixed(2)}%
+              {portfolio?.dayChangePct?.toFixed(2) || "0.00"}%
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-1">Updated just now · TON network</p>
@@ -84,41 +123,44 @@ export const HomeScreen: React.FC<Props> = ({ portfolioUsd, dayChangePct, onNavi
           </button>
         </div>
 
-        <div className="game-card divide-y divide-border">
-          {TOKENS.map((t) => {
-            const valueUsd = t.balance * t.priceUsd;
-            const up = t.change24h >= 0;
-            return (
-              <div key={t.symbol} className="flex items-center gap-3 p-3">
-                <div className="w-10 h-10 rounded-2xl bg-muted border-2 border-border flex items-center justify-center text-lg shrink-0">
-                  {t.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-display font-bold text-sm truncate">{t.symbol}</p>
-                    <p className="font-display font-bold text-sm tabular-nums">
-                      ${valueUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                    </p>
+        {portfolio?.assets && portfolio.assets.length > 0 ? (
+          <div className="game-card divide-y divide-border">
+            {portfolio.assets.map((t) => {
+              const up = t.change24h >= 0;
+              return (
+                <div key={t.symbol} className="flex items-center gap-3 p-3">
+                  <AssetIcon symbol={t.symbol} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-display font-bold text-sm truncate">{t.symbol}</p>
+                      <p className="font-display font-bold text-sm tabular-nums">
+                        ${t.valueUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground truncate">
+                        {t.balance.toLocaleString(undefined, { maximumFractionDigits: 4 })} {t.symbol}
+                      </p>
+                      <span
+                        className={
+                          "text-[11px] font-bold tabular-nums " +
+                          (up ? "text-success-foreground" : "text-destructive")
+                        }
+                      >
+                        {up ? "+" : ""}
+                        {t.change24h.toFixed(2)}%
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-muted-foreground truncate">
-                      {t.balance.toLocaleString(undefined, { maximumFractionDigits: 4 })} {t.symbol}
-                    </p>
-                    <span
-                      className={
-                        "text-[11px] font-bold tabular-nums " +
-                        (up ? "text-success-foreground" : "text-destructive")
-                      }
-                    >
-                      {up ? "+" : ""}
-                      {t.change24h.toFixed(2)}%
-                    </span>
-                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="game-card p-6 text-center">
+            <p className="text-muted-foreground text-sm">No assets yet. Connect your wallet to see your portfolio!</p>
+          </div>
+        )}
       </section>
 
       {/* Daily quests */}
@@ -136,28 +178,38 @@ export const HomeScreen: React.FC<Props> = ({ portfolioUsd, dayChangePct, onNavi
           </button>
         </div>
 
-        <div className="space-y-3">
-          {QUESTS.slice(0, 3).map((q) => (
-            <article
-              key={q.id}
-              className="game-card p-4 flex items-center gap-3"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-secondary-soft border-2 border-secondary/60 flex items-center justify-center shrink-0">
-                <img src={treasureChest} alt="" width={48} height={48} loading="lazy" className="w-9 h-9" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-display font-bold text-sm truncate">{q.title}</p>
-                  <span className="chip bg-secondary-soft text-secondary-foreground border border-secondary/60">
-                    +{q.reward} XP
-                  </span>
+        {token && quests.length > 0 ? (
+          <div className="space-y-3">
+            {quests.slice(0, 3).map((q) => (
+              <article
+                key={q.id}
+                className="game-card p-4 flex items-center gap-3"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-secondary-soft border-2 border-secondary/60 flex items-center justify-center shrink-0">
+                  <img src={treasureChest} alt="" width={48} height={48} loading="lazy" className="w-9 h-9" />
                 </div>
-                <p className="text-xs text-muted-foreground truncate">{q.hint}</p>
-                <XPBar value={q.progress} className="mt-2" tone="secondary" />
-              </div>
-            </article>
-          ))}
-        </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-display font-bold text-sm truncate">{q.title}</p>
+                    <span className="chip bg-secondary-soft text-secondary-foreground border border-secondary/60">
+                      +{q.reward} XP
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">{q.hint}</p>
+                  <XPBar value={q.progress} className="mt-2" tone="secondary" />
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : !token ? (
+          <div className="game-card p-6 text-center">
+            <p className="text-muted-foreground text-sm">Connect your wallet to see daily quests and earn XP.</p>
+          </div>
+        ) : (
+          <div className="game-card p-6 text-center">
+            <p className="text-muted-foreground text-sm">Complete quests to earn XP!</p>
+          </div>
+        )}
       </section>
     </div>
   );

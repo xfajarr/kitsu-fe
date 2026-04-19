@@ -1,7 +1,6 @@
 import * as React from "react";
 import { PopButton } from "@/components/PopButton";
 import { XPBar } from "@/components/XPBar";
-import { ACTIVITIES, GOALS, LEADERBOARD, PROFILE, TOKENS, type Activity, type Goal } from "@/data/mock";
 import {
   Trophy,
   Target,
@@ -13,31 +12,111 @@ import {
   Sparkles,
   TrendingUp,
   ArrowDownToLine,
-  Gift,
-  UserPlus,
   Crown,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import {
+  useUser,
+  usePortfolio,
+  useGoals,
+  useCreateGoal,
+  useLeaderboard,
+  useTransactions,
+  useDeposit,
+} from "@/hooks/queries";
+import { useAuthToken } from "@/hooks/useAuthToken";
+import { useWallet } from "@/hooks/useWallet";
+import type { Goal, Transaction, Portfolio } from "@/lib/api";
+import { calculateLevelFromXp } from "@/lib/gamification";
+import { format } from "date-fns";
 
 type Section = "overview" | "assets" | "goals" | "leaderboard" | "activity";
 
 export const ProfileScreen: React.FC = () => {
+  const token = useAuthToken();
   const [section, setSection] = React.useState<Section>("overview");
-  const [goals, setGoals] = React.useState<Goal[]>(GOALS);
   const [creatingGoal, setCreatingGoal] = React.useState(false);
+  const { connected, sendTransaction } = useWallet();
 
-  const portfolioUsd = TOKENS.reduce((s, t) => s + t.balance * t.priceUsd, 0);
-  const xpPct = PROFILE.xp / PROFILE.xpNext;
+  const { data: user, isLoading: userLoading } = useUser();
+  const { data: portfolio } = usePortfolio();
+  const { data: goals = [], isLoading: goalsLoading } = useGoals();
+  const { data: leaderboard = [], isLoading: lbLoading } = useLeaderboard();
+  const { data: transactions = [], isLoading: txLoading } = useTransactions();
+  const createGoal = useCreateGoal();
+  const depositMut = useDeposit();
 
-  const addGoal = (g: Omit<Goal, "id" | "savedUsd">) => {
-    setGoals((prev) => [
-      { ...g, id: `g-${Date.now()}`, savedUsd: 0 },
-      ...prev,
-    ]);
-    setCreatingGoal(false);
-    toast.success("Goal added! Foxy will help you crush it 🎯");
+  const portfolioUsd = portfolio?.totalUsd ?? 0;
+  const savedUsd = goals.reduce((s, g) => s + parseFloat(g.currentUsd || "0"), 0);
+
+  const levelInfo = user ? calculateLevelFromXp(user.xp) : null;
+  const xpPct = levelInfo && levelInfo.xpForNext + levelInfo.xpInLevel > 0
+    ? levelInfo.xpInLevel / (levelInfo.xpInLevel + levelInfo.xpForNext)
+    : 0;
+
+  const displayName = user?.username || user?.tonHandle || "Saver";
+  const handle = user?.tonHandle ? `@${user.tonHandle}` : user?.walletAddr ? `· ${user.walletAddr.slice(0, 6)}…` : "";
+  const joinedLabel = user?.createdAt
+    ? `Joined ${format(new Date(user.createdAt), "MMM yyyy")}`
+    : "";
+
+  const addGoal = async (g: { title: string; description?: string; emoji: string; targetTon: number; visibility: 'private' | 'public'; strategy: 'tonstakers' | 'stonfi'; dueDate?: string }) => {
+    if (!connected) {
+      toast.error("Connect your wallet first.");
+      return;
+    }
+
+    try {
+      const result = await createGoal.mutateAsync({
+        title: g.title,
+        description: g.description,
+        emoji: g.emoji || undefined,
+        targetTon: g.targetTon.toFixed(8),
+        visibility: g.visibility,
+        strategy: g.strategy,
+        dueDate: g.dueDate,
+      });
+      await sendTransaction({
+        validUntil: Date.now() + 5 * 60 * 1000,
+        messages: result.txParams.messages,
+      });
+      setCreatingGoal(false);
+      toast.success("Goal added! Foxy will help you crush it 🎯");
+    } catch {
+      toast.error("Could not create goal.");
+    }
   };
+
+  if (!token) {
+    return (
+      <div className="px-4 pt-2 pb-28 animate-fade-in space-y-5">
+        <div className="game-card p-8 text-center">
+          <p className="font-display font-bold text-lg">Profile</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Connect your wallet and sign in to see your goals, leaderboard rank, and activity.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (userLoading && !user) {
+    return (
+      <div className="px-4 pt-2 pb-28 flex items-center justify-center min-h-[320px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="px-4 pt-2 pb-28 flex items-center justify-center min-h-[320px]">
+        <p className="text-sm text-muted-foreground text-center">Could not load your profile. Try reconnecting your wallet.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 pt-2 pb-28 animate-fade-in space-y-5">
@@ -49,14 +128,16 @@ export const ProfileScreen: React.FC = () => {
             🦊
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-display text-xl font-bold truncate">{PROFILE.name}</p>
-            <p className="text-xs text-muted-foreground truncate">{PROFILE.handle} · {PROFILE.joinedLabel}</p>
+            <p className="font-display text-xl font-bold truncate">{displayName}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {handle} {joinedLabel}
+            </p>
             <div className="mt-2 flex items-center gap-2">
               <span className="chip bg-secondary-soft text-secondary-foreground border border-secondary/60">
-                <Trophy className="w-3 h-3" /> Lv {PROFILE.level}
+                <Trophy className="w-3 h-3" /> Lv {user.level}
               </span>
               <span className="chip bg-warning/30 text-warning-foreground border border-warning/60">
-                <Flame className="w-3 h-3" /> {PROFILE.streak}d
+                <Flame className="w-3 h-3" /> {user.streakDays}d
               </span>
             </div>
           </div>
@@ -64,16 +145,16 @@ export const ProfileScreen: React.FC = () => {
 
         <div className="relative mt-4">
           <div className="flex justify-between text-[11px] font-bold text-muted-foreground tabular-nums mb-1">
-            <span>{PROFILE.xp} XP</span>
-            <span>Next: {PROFILE.xpNext} XP</span>
+            <span>{user.xp} XP</span>
+            <span>Next level: ~{Math.max(0, Math.round(levelInfo?.xpForNext ?? 0))} XP to go</span>
           </div>
           <XPBar value={xpPct} tone="secondary" />
         </div>
 
         <div className="relative mt-4 grid grid-cols-3 gap-2 text-center">
           <Stat label="Wealth" value={`$${portfolioUsd.toFixed(0)}`} />
-          <Stat label="Saved" value={`$${PROFILE.totalSavedUsd}`} />
-          <Stat label="Earned" value={`+$${PROFILE.totalEarnedUsd.toFixed(2)}`} />
+          <Stat label="Saved" value={`$${savedUsd.toFixed(0)}`} />
+          <Stat label="XP" value={user.xp.toLocaleString()} />
         </div>
       </section>
 
@@ -103,22 +184,42 @@ export const ProfileScreen: React.FC = () => {
         ))}
       </div>
 
-      {section === "overview" && <OverviewSection goals={goals} />}
-      {section === "assets" && <AssetsSection portfolioUsd={portfolioUsd} />}
+      {section === "overview" && (
+        <OverviewSection
+          goals={goals}
+          goalsLoading={goalsLoading}
+          userId={user.id}
+          leaderboard={leaderboard}
+          lbLoading={lbLoading}
+          transactions={transactions}
+          txLoading={txLoading}
+        />
+      )}
+      {section === "assets" && <AssetsSection portfolioUsd={portfolioUsd} portfolio={portfolio} />}
       {section === "goals" && (
         <GoalsSection
           goals={goals}
+          goalsLoading={goalsLoading}
           onAdd={() => setCreatingGoal(true)}
-          onDeposit={(id, amt) => {
-            setGoals((prev) =>
-              prev.map((g) => (g.id === id ? { ...g, savedUsd: Math.min(g.targetUsd, g.savedUsd + amt) } : g)),
-            );
-            toast.success(`+$${amt} towards your goal 🎯`);
+          onDepositTon={async (id, amountTon) => {
+            try {
+              const tx = await depositMut.mutateAsync({ type: "goal", targetId: id, amountTon: amountTon.toFixed(8) });
+              if (!tx.txParams) {
+                throw new Error("Missing transaction params");
+              }
+              await sendTransaction({
+                validUntil: Date.now() + 5 * 60 * 1000,
+                messages: tx.txParams.messages,
+              });
+              toast.success(`+${amountTon} TON toward your goal`);
+            } catch {
+              toast.error("Deposit failed.");
+            }
           }}
         />
       )}
-      {section === "leaderboard" && <LeaderboardSection />}
-      {section === "activity" && <ActivitySection />}
+      {section === "leaderboard" && <LeaderboardSection rows={leaderboard} loading={lbLoading} userId={user.id} />}
+      {section === "activity" && <ActivitySection txs={transactions} loading={txLoading} />}
 
       {creatingGoal && <CreateGoalSheet onClose={() => setCreatingGoal(false)} onCreate={addGoal} />}
     </div>
@@ -132,12 +233,26 @@ const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   </div>
 );
 
-/* -------------------- Overview -------------------- */
-
-const OverviewSection: React.FC<{ goals: Goal[] }> = ({ goals }) => {
+const OverviewSection: React.FC<{
+  goals: Goal[];
+  goalsLoading: boolean;
+  userId: string;
+  leaderboard: Array<{ rank: number; userId: string; username: string; xp: number; level: number }>;
+  lbLoading: boolean;
+  transactions: Transaction[];
+  txLoading: boolean;
+}> = ({ goals, goalsLoading, userId, leaderboard, lbLoading, transactions, txLoading }) => {
   const top = goals[0];
-  const recent = ACTIVITIES.slice(0, 3);
-  const me = LEADERBOARD.find((r) => r.isMe);
+  const recent = transactions.slice(0, 5);
+  const me = leaderboard.find((r) => r.userId === userId);
+
+  if (goalsLoading || lbLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -147,16 +262,22 @@ const OverviewSection: React.FC<{ goals: Goal[] }> = ({ goals }) => {
             <p className="font-display font-bold inline-flex items-center gap-2">
               <Target className="w-4 h-4 text-primary-deep" /> Top goal
             </p>
-            <span className="text-xs text-muted-foreground">{top.dueLabel}</span>
+            <span className="text-xs text-muted-foreground">
+              {top.dueDate ? format(new Date(top.dueDate), "MMM yyyy") : "Ongoing"}
+            </span>
           </div>
           <div className="flex items-center gap-3 mt-2">
-            <div className="text-2xl">{top.emoji}</div>
+            <div className="text-2xl">{top.emoji || "🎯"}</div>
             <div className="flex-1 min-w-0">
               <p className="font-display font-bold truncate">{top.title}</p>
               <p className="text-xs text-muted-foreground tabular-nums">
-                ${top.savedUsd} of ${top.targetUsd}
+                ${parseFloat(top.currentUsd).toFixed(0)} of ${parseFloat(top.targetUsd).toFixed(0)}
               </p>
-              <XPBar className="mt-1" value={top.savedUsd / top.targetUsd} tone="primary" />
+              <XPBar
+                className="mt-1"
+                value={parseFloat(top.targetUsd) > 0 ? parseFloat(top.currentUsd) / parseFloat(top.targetUsd) : 0}
+                tone="primary"
+              />
             </div>
           </div>
         </article>
@@ -168,11 +289,11 @@ const OverviewSection: React.FC<{ goals: Goal[] }> = ({ goals }) => {
             <Trophy className="w-6 h-6 text-secondary-deep" />
           </div>
           <div className="flex-1">
-            <p className="font-display font-bold">You're rank #{me.rank}</p>
+            <p className="font-display font-bold">You&apos;re rank #{me.rank}</p>
             <p className="text-xs text-muted-foreground">Keep saving to climb the leaderboard!</p>
           </div>
           <span className="chip bg-secondary-soft text-secondary-foreground border border-secondary/60 tabular-nums">
-            {me.xp} XP
+            {me.xp.toLocaleString()} XP
           </span>
         </article>
       )}
@@ -182,18 +303,25 @@ const OverviewSection: React.FC<{ goals: Goal[] }> = ({ goals }) => {
           <ActivityIcon className="w-4 h-4 text-accent-deep" /> Recent activity
         </p>
         <div className="game-card divide-y divide-border">
-          {recent.map((a) => (
-            <ActivityRow key={a.id} a={a} />
-          ))}
+          {txLoading ? (
+            <div className="p-6 flex justify-center">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : recent.length === 0 ? (
+            <p className="p-4 text-sm text-muted-foreground text-center">No activity yet.</p>
+          ) : (
+            recent.map((t) => <TxRow key={t.id} t={t} />)
+          )}
         </div>
       </article>
     </div>
   );
 };
 
-/* -------------------- Assets -------------------- */
-
-const AssetsSection: React.FC<{ portfolioUsd: number }> = ({ portfolioUsd }) => (
+const AssetsSection: React.FC<{
+  portfolioUsd: number;
+  portfolio: Portfolio | undefined;
+}> = ({ portfolioUsd, portfolio }) => (
   <div className="space-y-3">
     <article className="game-card p-4">
       <p className="text-xs font-bold uppercase text-muted-foreground">Total balance</p>
@@ -202,47 +330,71 @@ const AssetsSection: React.FC<{ portfolioUsd: number }> = ({ portfolioUsd }) => 
       </p>
     </article>
     <div className="game-card divide-y divide-border">
-      {TOKENS.map((t) => {
-        const valueUsd = t.balance * t.priceUsd;
-        const up = t.change24h >= 0;
-        return (
-          <div key={t.symbol} className="flex items-center gap-3 p-3">
-            <div className="w-11 h-11 rounded-2xl bg-muted border-2 border-border flex items-center justify-center text-xl shrink-0">
-              {t.icon}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-display font-bold text-sm truncate">{t.name}</p>
-                  <p className="text-xs text-muted-foreground tabular-nums">
-                    {t.balance.toLocaleString(undefined, { maximumFractionDigits: 4 })} {t.symbol}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-display font-bold text-sm tabular-nums">
-                    ${valueUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                  </p>
-                  <p className={cn("text-[11px] font-bold tabular-nums", up ? "text-success-foreground" : "text-destructive")}>
-                    {up ? "+" : ""}
-                    {t.change24h.toFixed(2)}%
-                  </p>
+      {portfolio?.assets && portfolio.assets.length > 0 ? (
+        portfolio.assets.map((t) => {
+          const valueUsd = t.valueUsd;
+          const up = t.change24h >= 0;
+          return (
+            <div key={t.symbol} className="flex items-center gap-3 p-3">
+              <AssetIcon symbol={t.symbol} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-display font-bold text-sm truncate">{t.symbol}</p>
+                    <p className="text-xs text-muted-foreground tabular-nums">
+                      {t.balance.toLocaleString(undefined, { maximumFractionDigits: 4 })} {t.symbol}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-display font-bold text-sm tabular-nums">
+                      ${valueUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    </p>
+                    <p className={cn("text-[11px] font-bold tabular-nums", up ? "text-success-foreground" : "text-destructive")}>
+                      {up ? "+" : ""}
+                      {t.change24h.toFixed(2)}%
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })
+      ) : (
+        <p className="p-6 text-sm text-muted-foreground text-center">No assets yet.</p>
+      )}
     </div>
   </div>
 );
 
-/* -------------------- Goals -------------------- */
+function AssetIcon({ symbol }: { symbol: string }) {
+  const s = symbol.toUpperCase();
+  if (s === "TON") {
+    return (
+      <div className="w-11 h-11 rounded-2xl bg-muted border-2 border-border flex items-center justify-center shrink-0 p-1.5">
+        <img src="/TON-white-icon.svg" alt="" className="w-8 h-8 object-contain" />
+      </div>
+    );
+  }
+  if (s === "USDT" || s === "USD₮") {
+    return (
+      <div className="w-11 h-11 rounded-2xl bg-muted border-2 border-border flex items-center justify-center shrink-0 p-1.5">
+        <img src="/tether-usdt-logo.svg" alt="" className="w-8 h-8 object-contain" />
+      </div>
+    );
+  }
+  return (
+    <div className="w-11 h-11 rounded-2xl bg-muted border-2 border-border flex items-center justify-center shrink-0">
+      <img src="/placeholder.svg" alt="" className="w-7 h-7 object-contain opacity-80" />
+    </div>
+  );
+}
 
 const GoalsSection: React.FC<{
   goals: Goal[];
+  goalsLoading: boolean;
   onAdd: () => void;
-  onDeposit: (id: string, amount: number) => void;
-}> = ({ goals, onAdd, onDeposit }) => (
+  onDepositTon: (id: string, amountTon: number) => void;
+}> = ({ goals, goalsLoading, onAdd, onDepositTon }) => (
   <div className="space-y-3">
     <div className="flex items-center justify-between px-1">
       <p className="font-display font-bold inline-flex items-center gap-2">
@@ -253,37 +405,50 @@ const GoalsSection: React.FC<{
       </PopButton>
     </div>
 
-    {goals.length === 0 ? (
+    {goalsLoading ? (
+      <div className="flex justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    ) : goals.length === 0 ? (
       <div className="game-card p-6 text-center">
         <p className="font-display font-bold">No goals yet</p>
         <p className="text-sm text-muted-foreground">Set one and Foxy will cheer you on.</p>
       </div>
     ) : (
       goals.map((g) => {
-        const pct = g.savedUsd / g.targetUsd;
+        const target = parseFloat(g.targetTon || "0");
+        const cur = parseFloat(g.currentTon || "0");
+        const pct = target > 0 ? cur / target : 0;
         return (
           <article key={g.id} className="game-card p-4">
             <div className="flex items-start gap-3">
               <div className="w-12 h-12 rounded-2xl bg-primary-soft border-2 border-primary/40 flex items-center justify-center text-2xl shrink-0">
-                {g.emoji}
+                {g.emoji || "🎯"}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-display font-bold truncate">{g.title}</p>
-                  <span className="text-xs text-muted-foreground">{g.dueLabel}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {g.dueDate ? format(new Date(g.dueDate), "MMM yyyy") : "Ongoing"}
+                  </span>
                 </div>
+                {g.description && <p className="text-xs text-muted-foreground mt-1">{g.description}</p>}
                 <p className="text-xs text-muted-foreground tabular-nums">
-                  ${g.savedUsd.toLocaleString()} of ${g.targetUsd.toLocaleString()} ({Math.round(pct * 100)}%)
+                  {cur.toLocaleString()} TON of {target.toLocaleString()} TON ({Math.round(pct * 100)}%)
                 </p>
-                <XPBar className="mt-2" value={pct} tone={g.tone === "secondary" ? "success" : g.tone} />
+                <p className="text-[11px] text-muted-foreground mt-1 capitalize">
+                  {g.visibility} goal via {g.strategy}
+                </p>
+                <XPBar className="mt-2" value={pct} tone="primary" />
                 <div className="flex gap-2 mt-3">
-                  {[5, 25, 50].map((amt) => (
+                  {[0.1, 0.5, 1].map((amt) => (
                     <button
                       key={amt}
-                      onClick={() => onDeposit(g.id, amt)}
+                      type="button"
+                      onClick={() => onDepositTon(g.id, amt)}
                       className="flex-1 rounded-2xl border-2 border-border bg-card py-1.5 text-xs font-display font-bold press-effect"
                     >
-                      +${amt}
+                      +{amt} TON
                     </button>
                   ))}
                 </div>
@@ -298,12 +463,15 @@ const GoalsSection: React.FC<{
 
 const CreateGoalSheet: React.FC<{
   onClose: () => void;
-  onCreate: (g: Omit<Goal, "id" | "savedUsd">) => void;
+  onCreate: (g: { title: string; description?: string; emoji: string; targetTon: number; visibility: 'private' | 'public'; strategy: 'tonstakers' | 'stonfi'; dueDate?: string }) => void | Promise<void>;
 }> = ({ onClose, onCreate }) => {
   const [title, setTitle] = React.useState("");
+  const [description, setDescription] = React.useState("");
   const [emoji, setEmoji] = React.useState("🎯");
-  const [target, setTarget] = React.useState(500);
-  const [due, setDue] = React.useState("Soon");
+  const [target, setTarget] = React.useState(10);
+  const [visibility, setVisibility] = React.useState<'private' | 'public'>("private");
+  const [strategy, setStrategy] = React.useState<'tonstakers' | 'stonfi'>("tonstakers");
+  const [dueDate, setDueDate] = React.useState("");
   const choices = ["🎯", "💻", "🗾", "🛟", "🏠", "🎓", "🚗", "💍"];
 
   return (
@@ -314,10 +482,17 @@ const CreateGoalSheet: React.FC<{
       className="fixed inset-0 z-40 flex items-end justify-center bg-foreground/30 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
     >
-      <div className="bg-card w-full max-w-md rounded-t-3xl border-t-2 border-x-2 border-border p-5 pb-8 animate-pop-in" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="bg-card w-full max-w-md rounded-t-3xl border-t-2 border-x-2 border-border p-5 pb-8 animate-pop-in"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-start justify-between mb-3">
           <p className="font-display text-xl font-bold">New goal</p>
-          <button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full bg-muted flex items-center justify-center press-effect">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="w-9 h-9 rounded-full bg-muted flex items-center justify-center press-effect"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -332,12 +507,23 @@ const CreateGoalSheet: React.FC<{
           />
         </label>
 
+        <label className="block mt-3">
+          <span className="text-xs font-bold uppercase text-muted-foreground">Description</span>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Why are you saving for this?"
+            className="mt-1 min-h-24 w-full bg-muted rounded-2xl border-2 border-border px-3 py-2.5 text-sm outline-none focus:border-primary"
+          />
+        </label>
+
         <div className="mt-3">
           <span className="text-xs font-bold uppercase text-muted-foreground">Pick an icon</span>
           <div className="grid grid-cols-4 gap-2 mt-1">
             {choices.map((e) => (
               <button
                 key={e}
+                type="button"
                 onClick={() => setEmoji(e)}
                 className={cn(
                   "h-12 rounded-2xl border-2 text-2xl press-effect",
@@ -350,34 +536,75 @@ const CreateGoalSheet: React.FC<{
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <label className="block">
-            <span className="text-xs font-bold uppercase text-muted-foreground">Target ($)</span>
-            <input
-              type="number"
-              min={1}
-              value={target}
-              onChange={(e) => setTarget(Math.max(1, Number(e.target.value) || 0))}
-              className="mt-1 w-full bg-muted rounded-2xl border-2 border-border px-3 py-2.5 font-display font-bold outline-none focus:border-primary tabular-nums"
-            />
-          </label>
-          <label className="block">
-            <span className="text-xs font-bold uppercase text-muted-foreground">By when</span>
-            <input
-              value={due}
-              onChange={(e) => setDue(e.target.value)}
-              placeholder="Aug 2026"
-              className="mt-1 w-full bg-muted rounded-2xl border-2 border-border px-3 py-2.5 font-display font-bold outline-none focus:border-primary"
-            />
-          </label>
+        <label className="block mt-3">
+          <span className="text-xs font-bold uppercase text-muted-foreground">Target (TON)</span>
+          <input
+            type="number"
+            min={1}
+            step="0.1"
+            value={target}
+            onChange={(e) => setTarget(Math.max(0.1, Number(e.target.value) || 0))}
+            className="mt-1 w-full bg-muted rounded-2xl border-2 border-border px-3 py-2.5 font-display font-bold outline-none focus:border-primary tabular-nums"
+          />
+        </label>
+
+        <div className="mt-3">
+          <span className="text-xs font-bold uppercase text-muted-foreground">Visibility</span>
+          <div className="grid grid-cols-2 gap-2 mt-1">
+            {(["private", "public"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setVisibility(value)}
+                className={cn(
+                  "rounded-2xl border-2 py-2 font-display font-bold text-sm press-effect capitalize",
+                  visibility === value ? "bg-primary-soft border-primary" : "bg-card border-border",
+                )}
+              >
+                {value}
+              </button>
+            ))}
+          </div>
         </div>
+
+        <div className="mt-3">
+          <span className="text-xs font-bold uppercase text-muted-foreground">Strategy</span>
+          <div className="grid grid-cols-2 gap-2 mt-1">
+            {([
+              { value: "tonstakers", label: "TonStakers" },
+              { value: "stonfi", label: "STON.fi LP" },
+            ] as const).map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setStrategy(option.value)}
+                className={cn(
+                  "rounded-2xl border-2 py-2 font-display font-bold text-sm press-effect",
+                  strategy === option.value ? "bg-primary-soft border-primary" : "bg-card border-border",
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <label className="block mt-3">
+          <span className="text-xs font-bold uppercase text-muted-foreground">End date (optional)</span>
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            className="mt-1 w-full bg-muted rounded-2xl border-2 border-border px-3 py-2.5 outline-none focus:border-primary"
+          />
+        </label>
 
         <PopButton
           block
           tone="primary"
           className="mt-5"
-          disabled={!title.trim() || target < 1}
-          onClick={() => onCreate({ title: title.trim(), emoji, targetUsd: target, dueLabel: due || "Ongoing", tone: "primary" })}
+          disabled={!title.trim() || target < 0.1}
+          onClick={() => void onCreate({ title: title.trim(), description: description.trim() || undefined, emoji, targetTon: target, visibility, strategy, dueDate: dueDate ? new Date(`${dueDate}T00:00:00`).toISOString() : undefined })}
         >
           Create goal
         </PopButton>
@@ -386,69 +613,78 @@ const CreateGoalSheet: React.FC<{
   );
 };
 
-/* -------------------- Leaderboard -------------------- */
-
-const LeaderboardSection: React.FC = () => (
-  <div className="game-card divide-y divide-border">
-    {LEADERBOARD.map((row) => (
-      <div
-        key={row.rank}
-        className={cn(
-          "flex items-center gap-3 p-3",
-          row.isMe && "bg-primary-soft",
-        )}
-      >
-        <div
-          className={cn(
-            "w-10 h-10 rounded-2xl border-2 flex items-center justify-center font-display font-bold tabular-nums",
-            row.rank === 1 && "bg-secondary-soft border-secondary text-secondary-foreground",
-            row.rank === 2 && "bg-muted border-border",
-            row.rank === 3 && "bg-warning/30 border-warning/60",
-            row.rank > 3 && "bg-card border-border",
-          )}
-        >
-          {row.rank <= 3 ? <Crown className="w-4 h-4" /> : `#${row.rank}`}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-display font-bold truncate inline-flex items-center gap-2">
-            <span className="text-lg">{row.emoji}</span> {row.name}
-          </p>
-          <p className="text-xs text-muted-foreground">Rank #{row.rank}</p>
-        </div>
-        <span className="chip bg-secondary-soft text-secondary-foreground border border-secondary/60 tabular-nums">
-          {row.xp.toLocaleString()} XP
-        </span>
+const LeaderboardSection: React.FC<{
+  rows: Array<{ rank: number; userId: string; username: string; xp: number; level: number }>;
+  loading: boolean;
+  userId: string;
+}> = ({ rows, loading, userId }) => {
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
-    ))}
-  </div>
-);
+    );
+  }
+  return (
+    <div className="game-card divide-y divide-border">
+      {rows.map((row) => (
+        <div
+          key={row.userId}
+          className={cn("flex items-center gap-3 p-3", row.userId === userId && "bg-primary-soft")}
+        >
+          <div
+            className={cn(
+              "w-10 h-10 rounded-2xl border-2 flex items-center justify-center font-display font-bold tabular-nums",
+              row.rank === 1 && "bg-secondary-soft border-secondary text-secondary-foreground",
+              row.rank === 2 && "bg-muted border-border",
+              row.rank === 3 && "bg-warning/30 border-warning/60",
+              row.rank > 3 && "bg-card border-border",
+            )}
+          >
+            {row.rank <= 3 ? <Crown className="w-4 h-4" /> : `#${row.rank}`}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-display font-bold truncate">{row.username}</p>
+            <p className="text-xs text-muted-foreground">Lv {row.level}</p>
+          </div>
+          <span className="chip bg-secondary-soft text-secondary-foreground border border-secondary/60 tabular-nums">
+            {row.xp.toLocaleString()} XP
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
 
-/* -------------------- Activity -------------------- */
+const ActivitySection: React.FC<{ txs: Transaction[]; loading: boolean }> = ({ txs, loading }) => {
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+  return (
+    <div className="game-card divide-y divide-border">
+      {txs.length === 0 ? (
+        <p className="p-6 text-sm text-muted-foreground text-center">No activity yet.</p>
+      ) : (
+        txs.map((t) => <TxRow key={t.id} t={t} />)
+      )}
+    </div>
+  );
+};
 
-const ActivitySection: React.FC = () => (
-  <div className="game-card divide-y divide-border">
-    {ACTIVITIES.map((a) => (
-      <ActivityRow key={a.id} a={a} />
-    ))}
-  </div>
-);
-
-const ActivityRow: React.FC<{ a: Activity }> = ({ a }) => {
+const TxRow: React.FC<{ t: Transaction }> = ({ t }) => {
   const Icon =
-    a.kind === "deposit"
+    t.type === "deposit"
       ? ArrowDownToLine
-      : a.kind === "reward"
-      ? Gift
-      : a.kind === "quest"
-      ? Sparkles
-      : a.kind === "join"
-      ? UserPlus
-      : TrendingUp;
+      : t.type === "withdraw"
+      ? TrendingUp
+      : Sparkles;
 
   const tone =
-    a.kind === "reward" || a.kind === "quest"
-      ? "bg-secondary-soft text-secondary-foreground border-secondary/60"
-      : a.kind === "deposit"
+    t.type === "deposit"
       ? "bg-primary-soft text-primary-deep border-primary/40"
       : "bg-accent-soft text-accent-foreground border-accent/60";
 
@@ -458,16 +694,15 @@ const ActivityRow: React.FC<{ a: Activity }> = ({ a }) => {
         <Icon className="w-4 h-4" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-display font-bold text-sm truncate">{a.title}</p>
-        <p className="text-xs text-muted-foreground truncate">{a.subtitle}</p>
+        <p className="font-display font-bold text-sm truncate capitalize">{t.type}</p>
+        <p className="text-xs text-muted-foreground truncate">{format(new Date(t.createdAt), "MMM d, HH:mm")}</p>
       </div>
       <div className="text-right">
-        {a.amountUsd !== undefined && (
+        {t.amount && parseFloat(t.amount) > 0 && (
           <p className="font-display font-bold text-sm tabular-nums text-success-foreground">
-            +${a.amountUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            {t.amount} TON
           </p>
         )}
-        <p className="text-[11px] text-muted-foreground">{a.whenLabel}</p>
       </div>
     </div>
   );

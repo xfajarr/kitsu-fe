@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, type Den, type DenWithMembers } from '@/lib/api';
 import { queryKeys } from '@/lib/queryKeys';
+import { useAuthToken } from '@/hooks/useAuthToken';
 
 export function useDens() {
   return useQuery({
@@ -13,12 +14,14 @@ export function useDens() {
 }
 
 export function useMyDens() {
+  const token = useAuthToken();
   return useQuery({
     queryKey: queryKeys.densMine,
     queryFn: async (): Promise<Den[]> => {
       const response = await apiClient.getMyDens();
       return response.data.data.dens;
     },
+    enabled: !!token,
   });
 }
 
@@ -39,7 +42,7 @@ export function useCreateDen() {
   return useMutation({
     mutationFn: async (data: { name: string; emoji?: string; isPublic: boolean; strategy: 'steady' | 'adventurous' }) => {
       const response = await apiClient.createDen(data);
-      return response.data.data.den;
+      return response.data.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.dens });

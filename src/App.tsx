@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { TonConnectProvider } from "@/providers/TonConnectProvider";
+import { WalletAuthSync } from "@/components/WalletAuthSync";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -20,6 +21,7 @@ const queryClient = new QueryClient({
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TonConnectProvider>
+      <WalletAuthSync />
       <TooltipProvider>
         <Toaster />
         <Sonner />

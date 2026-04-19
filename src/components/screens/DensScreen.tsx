@@ -1,7 +1,6 @@
 import * as React from "react";
 import { PopButton } from "@/components/PopButton";
 import { XPBar } from "@/components/XPBar";
-import { DENS, type Den } from "@/data/mock";
 import {
   Vault,
   Lock,
@@ -12,57 +11,103 @@ import {
   Sparkles,
   TrendingUp,
   Crown,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useDens, useMyDens, useJoinDen, useCreateDen, useUser } from "@/hooks/queries";
+import { useWallet } from "@/hooks/useWallet";
+import type { Den } from "@/lib/api";
 
 type Tab = "explore" | "mine";
 
+type DisplayDen = {
+  id: string;
+  name: string;
+  emoji: string | null;
+  isPublic: boolean;
+  strategy: string;
+  apr: string;
+  totalDeposited: string;
+  memberCount: number;
+  myDeposit?: number;
+  isOwner?: boolean;
+};
+
 export const DensScreen: React.FC = () => {
   const [tab, setTab] = React.useState<Tab>("explore");
-  const [dens, setDens] = React.useState<Den[]>(DENS);
-  const [openDen, setOpenDen] = React.useState<Den | null>(null);
+  const [openDen, setOpenDen] = React.useState<DisplayDen | null>(null);
   const [creating, setCreating] = React.useState(false);
+  const { connected, address, sendTransaction } = useWallet();
+  const { data: user } = useUser();
 
-  const myDens = dens.filter((d) => d.myDeposit > 0 || d.isOwner);
-  const exploreDens = dens.filter((d) => d.visibility === "public");
+  const { data: publicDens, isLoading: exploreLoading } = useDens();
+  const { data: myDensData, isLoading: mineLoading } = useMyDens();
+  const joinDen = useJoinDen();
+  const createDen = useCreateDen();
 
-  const visible = tab === "mine" ? myDens : exploreDens;
+  const isLoading = tab === "mine" ? mineLoading : exploreLoading;
 
-  const handleDeposit = (denId: string, amountUsd: number) => {
-    setDens((prev) =>
-      prev.map((d) =>
-        d.id === denId
-          ? { ...d, myDeposit: d.myDeposit + amountUsd, totalDeposited: d.totalDeposited + amountUsd, members: d.myDeposit === 0 ? d.members + 1 : d.members }
-          : d,
-      ),
-    );
-    toast.success(`Deposited $${amountUsd} into your den 🦊`, {
-      description: "Foxy will start growing it for you.",
-    });
-    setOpenDen(null);
+  // Transform API data to display format
+  const dens: DisplayDen[] = React.useMemo(() => {
+    const list = tab === "mine" ? (myDensData || []) : (publicDens || []);
+    return list.map((d) => ({
+      ...d,
+      myDeposit:
+        tab === "mine" && d.myDepositTon != null
+          ? parseFloat(d.myDepositTon)
+          : 0,
+      isOwner: user?.id != null && d.ownerId === user.id,
+    }));
+  }, [publicDens, myDensData, tab, user?.id]);
+
+  const handleDeposit = async (denId: string, amountTon: number) => {
+    if (!connected || !address) {
+      toast.error("Please connect your wallet first");
+      return;
+    }
+
+    try {
+      const result = await joinDen.mutateAsync({
+        denId,
+        amountTon: amountTon.toString(),
+      });
+      await sendTransaction({
+        validUntil: Date.now() + 5 * 60 * 1000,
+        messages: result.deposit.txParams.messages,
+      });
+      toast.success(`Deposited ${amountTon} TON into your den 🦊`, {
+        description: "Foxy will start growing it for you.",
+      });
+      setOpenDen(null);
+    } catch (error) {
+      toast.error("Failed to deposit. Please try again.");
+    }
   };
 
-  const handleCreate = (data: { name: string; emoji: string; visibility: "public" | "private"; strategy: "stake" | "pool" }) => {
-    const newDen: Den = {
-      id: `den-${Date.now()}`,
-      name: data.name,
-      emoji: data.emoji || "🦊",
-      description: "Your brand new Money Den.",
-      visibility: data.visibility,
-      strategy: data.strategy,
-      apr: data.strategy === "stake" ? 4.8 : 16.2,
-      totalDeposited: 0,
-      members: 1,
-      ownerName: "You",
-      isOwner: true,
-      myDeposit: 0,
-      tone: "primary",
-    };
-    setDens((prev) => [newDen, ...prev]);
-    setCreating(false);
-    setTab("mine");
-    toast.success("Den created! Time to fill it 🪙");
+  const handleCreate = async (data: { name: string; emoji: string; visibility: "public" | "private"; strategy: "stake" | "pool" }) => {
+    if (!connected || !address) {
+      toast.error("Please connect your wallet first");
+      return;
+    }
+
+    try {
+      const result = await createDen.mutateAsync({
+        name: data.name,
+        emoji: data.emoji || "🦊",
+        isPublic: data.visibility === "public",
+        strategy: data.strategy === "stake" ? "steady" : "adventurous",
+      });
+      await sendTransaction({
+        validUntil: Date.now() + 5 * 60 * 1000,
+        messages: result.txParams.messages,
+      });
+      setCreating(false);
+      setTab("mine");
+      toast.success("Den created! Time to fill it 🪙");
+    } catch (error) {
+      toast.error("Failed to create den. Please try again.");
+    }
   };
 
   return (
@@ -97,11 +142,17 @@ export const DensScreen: React.FC = () => {
         ))}
       </div>
 
-      {visible.length === 0 ? (
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      ) : dens.length === 0 ? (
         <div className="game-card p-6 text-center">
           <p className="font-display font-bold text-lg">No dens yet</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Create your first den or jump into a public one.
+            {tab === "mine" 
+              ? "You haven't joined any dens yet. Explore public dens to get started!"
+              : "Create your first den or check back later."}
           </p>
           <PopButton tone="primary" size="sm" className="mt-3" onClick={() => setCreating(true)}>
             <Plus className="w-4 h-4" /> Create a Den
@@ -109,7 +160,7 @@ export const DensScreen: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          {visible.map((d) => (
+          {dens.map((d) => (
             <DenCard key={d.id} den={d} onOpen={() => setOpenDen(d)} />
           ))}
         </div>
@@ -120,22 +171,27 @@ export const DensScreen: React.FC = () => {
           den={openDen}
           onClose={() => setOpenDen(null)}
           onDeposit={(amount) => handleDeposit(openDen.id, amount)}
+          isDepositing={joinDen.isPending}
         />
       )}
 
-      {creating && <CreateDenSheet onClose={() => setCreating(false)} onCreate={handleCreate} />}
+      {creating && (
+        <CreateDenSheet
+          onClose={() => setCreating(false)}
+          onCreate={handleCreate}
+          isCreating={createDen.isPending}
+        />
+      )}
     </div>
   );
 };
 
 const toneSoft = {
-  primary: "bg-primary-soft border-primary/40",
-  secondary: "bg-secondary-soft border-secondary/60",
-  accent: "bg-accent-soft border-accent/60",
+  steady: "bg-primary-soft border-primary/40",
+  adventurous: "bg-secondary-soft border-secondary/60",
 } as const;
 
-const DenCard: React.FC<{ den: Den; onOpen: () => void }> = ({ den, onOpen }) => {
-  const filled = den.myDeposit > 0;
+const DenCard: React.FC<{ den: DisplayDen; onOpen: () => void }> = ({ den, onOpen }) => {
   return (
     <button
       onClick={onOpen}
@@ -144,11 +200,10 @@ const DenCard: React.FC<{ den: Den; onOpen: () => void }> = ({ den, onOpen }) =>
       <div className="flex items-start gap-3">
         <div
           className={cn(
-            "w-14 h-14 rounded-2xl border-2 flex items-center justify-center text-3xl shrink-0",
-            toneSoft[den.tone],
+            "w-14 h-14 rounded-2xl border-2 flex items-center justify-center text-3xl shrink-0 bg-muted border-border",
           )}
         >
-          {den.emoji}
+          {den.emoji || "🦊"}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -161,32 +216,31 @@ const DenCard: React.FC<{ den: Den; onOpen: () => void }> = ({ den, onOpen }) =>
             <span
               className={cn(
                 "chip border",
-                den.visibility === "public"
+                den.isPublic
                   ? "bg-accent-soft text-accent-foreground border-accent/60"
                   : "bg-muted text-foreground border-border",
               )}
             >
-              {den.visibility === "public" ? <Globe2 className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
-              {den.visibility}
+              {den.isPublic ? <Globe2 className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+              {den.isPublic ? "public" : "private"}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{den.description}</p>
 
           <div className="mt-2 flex items-center gap-3 flex-wrap text-xs">
             <span className="inline-flex items-center gap-1 text-success-foreground font-bold">
               <TrendingUp className="w-3 h-3" /> ~{den.apr}% / yr
             </span>
             <span className="inline-flex items-center gap-1 text-muted-foreground font-bold">
-              <Users className="w-3 h-3" /> {den.members.toLocaleString()}
+              <Users className="w-3 h-3" /> {den.memberCount.toLocaleString()}
             </span>
             <span className="text-muted-foreground font-bold tabular-nums">
-              ${den.totalDeposited.toLocaleString()} saved
+              {parseFloat(den.totalDeposited).toLocaleString()} TON saved
             </span>
           </div>
 
-          {filled && (
+          {den.myDeposit && den.myDeposit > 0 && (
             <div className="mt-2 chip bg-primary-soft text-primary-deep border border-primary/40">
-              <Sparkles className="w-3 h-3" /> You: ${den.myDeposit.toLocaleString()}
+              <Sparkles className="w-3 h-3" /> You: {den.myDeposit.toLocaleString()} TON
             </div>
           )}
         </div>
@@ -196,10 +250,11 @@ const DenCard: React.FC<{ den: Den; onOpen: () => void }> = ({ den, onOpen }) =>
 };
 
 const DenSheet: React.FC<{
-  den: Den;
+  den: DisplayDen;
   onClose: () => void;
   onDeposit: (amount: number) => void;
-}> = ({ den, onClose, onDeposit }) => {
+  isDepositing?: boolean;
+}> = ({ den, onClose, onDeposit, isDepositing }) => {
   const [amount, setAmount] = React.useState(25);
   const presets = [10, 25, 50, 100];
 
@@ -217,12 +272,14 @@ const DenSheet: React.FC<{
       >
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
-            <div className={cn("w-14 h-14 rounded-2xl border-2 flex items-center justify-center text-3xl", toneSoft[den.tone])}>
-              {den.emoji}
+            <div className={cn("w-14 h-14 rounded-2xl border-2 flex items-center justify-center text-3xl bg-muted border-border")}>
+              {den.emoji || "🦊"}
             </div>
             <div>
               <p className="font-display text-xl font-bold">{den.name}</p>
-              <p className="text-xs text-muted-foreground">by {den.ownerName}</p>
+              <p className="text-xs text-muted-foreground">
+                {den.strategy === "steady" ? "Steady Strategy" : "Adventurous Strategy"}
+              </p>
             </div>
           </div>
           <button
@@ -234,8 +291,6 @@ const DenSheet: React.FC<{
           </button>
         </div>
 
-        <p className="text-sm text-foreground/80">{den.description}</p>
-
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
           <div className="bg-muted rounded-2xl p-2 border border-border">
             <p className="text-[10px] uppercase font-bold text-muted-foreground">Reward</p>
@@ -243,23 +298,13 @@ const DenSheet: React.FC<{
           </div>
           <div className="bg-muted rounded-2xl p-2 border border-border">
             <p className="text-[10px] uppercase font-bold text-muted-foreground">Savers</p>
-            <p className="font-display font-bold tabular-nums">{den.members.toLocaleString()}</p>
+            <p className="font-display font-bold tabular-nums">{den.memberCount.toLocaleString()}</p>
           </div>
           <div className="bg-muted rounded-2xl p-2 border border-border">
             <p className="text-[10px] uppercase font-bold text-muted-foreground">In den</p>
-            <p className="font-display font-bold tabular-nums">${(den.totalDeposited / 1000).toFixed(1)}k</p>
+            <p className="font-display font-bold tabular-nums">{parseFloat(den.totalDeposited).toFixed(2)} TON</p>
           </div>
         </div>
-
-        {den.myDeposit > 0 && (
-          <div className="mt-3 game-card p-3 flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground font-bold uppercase">Your share</p>
-              <p className="font-display font-bold tabular-nums">${den.myDeposit.toLocaleString()}</p>
-            </div>
-            <XPBar value={Math.min(1, den.myDeposit / Math.max(den.totalDeposited, 1))} className="w-1/2" tone="primary" />
-          </div>
-        )}
 
         <div className="mt-5">
           <p className="font-display font-bold mb-2">Add to your savings</p>
@@ -278,7 +323,7 @@ const DenSheet: React.FC<{
             ))}
           </div>
           <div className="flex items-center gap-2 bg-muted rounded-2xl border-2 border-border px-3 py-2">
-            <span className="font-display font-bold">$</span>
+            <span className="font-display font-bold">TON</span>
             <input
               type="number"
               min={1}
@@ -288,8 +333,20 @@ const DenSheet: React.FC<{
               aria-label="Custom amount"
             />
           </div>
-          <PopButton block tone="primary" className="mt-4" onClick={() => onDeposit(amount)}>
-            Save ${amount} into this Den
+          <PopButton 
+            block 
+            tone="primary" 
+            className="mt-4" 
+            onClick={() => onDeposit(amount)}
+            disabled={isDepositing}
+          >
+            {isDepositing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" /> Depositing...
+              </>
+            ) : (
+              `Save ${amount} TON into this Den`
+            )}
           </PopButton>
           <p className="text-[11px] text-muted-foreground text-center mt-2">
             Foxy keeps your funds growing safely on the TON network.
@@ -303,7 +360,8 @@ const DenSheet: React.FC<{
 const CreateDenSheet: React.FC<{
   onClose: () => void;
   onCreate: (data: { name: string; emoji: string; visibility: "public" | "private"; strategy: "stake" | "pool" }) => void;
-}> = ({ onClose, onCreate }) => {
+  isCreating?: boolean;
+}> = ({ onClose, onCreate, isCreating }) => {
   const [name, setName] = React.useState("");
   const [emoji, setEmoji] = React.useState("🦊");
   const [visibility, setVisibility] = React.useState<"public" | "private">("private");
@@ -412,10 +470,16 @@ const CreateDenSheet: React.FC<{
           block
           tone="primary"
           className="mt-5"
-          disabled={!name.trim()}
+          disabled={!name.trim() || isCreating}
           onClick={() => onCreate({ name: name.trim(), emoji, visibility, strategy })}
         >
-          Create Den
+          {isCreating ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" /> Creating...
+            </>
+          ) : (
+            "Create Den"
+          )}
         </PopButton>
       </div>
     </div>
