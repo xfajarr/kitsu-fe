@@ -270,8 +270,12 @@ export const apiClient = {
     api.post<ApiResponse<{ claimed: boolean; xpAwarded: number; newTotalXp: number }>>(`/quests/${id}/claim`),
 
   // AI Chat
-  chat: (message: string, context?: { portfolioUsd?: number; goalsCount?: number; densCount?: number; level?: number }) =>
-    api.post<ApiResponse<{ reply: string }>>('/ai/chat', { message, context }),
+  chat: (
+    message: string, 
+    context?: { portfolioUsd?: number; goalsCount?: number; densCount?: number; level?: number },
+    history?: Array<{ role: 'user' | 'assistant'; content: string }>
+  ) =>
+    api.post<ApiResponse<{ reply: string }>>('/ai/chat', { message, context, history }),
 };
 
 export default api;

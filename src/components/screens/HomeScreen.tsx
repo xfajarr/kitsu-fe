@@ -1,6 +1,7 @@
 import * as React from "react";
 import { FoxBuddy } from "@/components/FoxBuddy";
 import { PopButton } from "@/components/PopButton";
+import { OmnistonSwapButton } from "@/components/OmnistonSwap";
 import { ArrowUpRight, Sparkles, ChevronRight, Vault, MessageCircleHeart, Wallet, Loader2 } from "lucide-react";
 import type { TabKey } from "@/components/BottomNav";
 import { usePortfolio } from "@/hooks/queries";
@@ -99,6 +100,13 @@ export const HomeScreen: React.FC<Props> = ({ onNavigate }) => {
             <PopButton tone="secondary" size="sm" onClick={() => onNavigate("fox")}>
               <MessageCircleHeart className="w-4 h-4" /> Ask Foxy
             </PopButton>
+          </div>
+
+          {/* Swap via Omniston */}
+          <div className="mt-3">
+            <OmnistonSwapButton className="w-full">
+              Convert Tokens
+            </OmnistonSwapButton>
           </div>
         </div>
       </section>
