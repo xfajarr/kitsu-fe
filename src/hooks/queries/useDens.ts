@@ -40,7 +40,7 @@ export function useCreateDen() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (data: { name: string; emoji?: string; isPublic: boolean; strategy: 'steady' | 'adventurous' }) => {
+    mutationFn: async (data: { name: string; emoji?: string; isPublic: boolean; strategy: 'steady' | 'adventurous'; contractAddress?: string }) => {
       const response = await apiClient.createDen(data);
       return response.data.data;
     },

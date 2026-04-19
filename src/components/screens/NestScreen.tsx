@@ -1,9 +1,11 @@
 import * as React from "react";
+import { PopButton } from "@/components/PopButton";
 import {
   Home,
   Lock,
   Globe2,
   Users,
+  Plus,
   X,
   Sparkles,
   TrendingUp,
@@ -12,7 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useDens, useMyDens, useJoinDen, useUser } from "@/hooks/queries";
+import { useCreateDen, useDens, useMyDens, useJoinDen, useLeaveDen, useUser } from "@/hooks/queries";
 import { useWallet } from "@/hooks/useWallet";
 
 type DisplayDen = {
@@ -31,12 +33,15 @@ type DisplayDen = {
 export const NestScreen: React.FC = () => {
   const [tab, setTab] = React.useState<"explore" | "mine">("explore");
   const [openDen, setOpenDen] = React.useState<DisplayDen | null>(null);
+  const [creatingNest, setCreatingNest] = React.useState(false);
   const { connected, address, sendTransaction } = useWallet();
   const { data: user } = useUser();
 
   const { data: publicDens, isLoading: exploreLoading } = useDens();
   const { data: myDensData, isLoading: mineLoading } = useMyDens();
   const joinDen = useJoinDen();
+  const leaveDen = useLeaveDen();
+  const createDen = useCreateDen();
 
   const isLoading = tab === "mine" ? mineLoading : exploreLoading;
 
@@ -74,13 +79,74 @@ export const NestScreen: React.FC = () => {
     }
   };
 
+  const handleWithdraw = async (denId: string) => {
+    if (!connected || !address) {
+      toast.error("Please connect your wallet first");
+      return;
+    }
+
+    try {
+      const result = await leaveDen.mutateAsync(denId);
+      await sendTransaction({
+        validUntil: Date.now() + 5 * 60 * 1000,
+        messages: result.txParams.messages,
+      });
+      toast.success("Withdraw request sent");
+      setOpenDen(null);
+    } catch (error: any) {
+      const message = error?.response?.data?.error?.message || "Failed to withdraw.";
+      toast.error(message);
+    }
+  };
+
+  const handleCreateNest = async (data: {
+    name: string;
+    emoji: string;
+    visibility: "public" | "private";
+    strategy: "stake" | "pool";
+    contractAddress?: string;
+  }) => {
+    if (!connected || !address) {
+      toast.error("Connect your wallet first");
+      return;
+    }
+
+    try {
+      const result = await createDen.mutateAsync({
+        name: data.name,
+        emoji: data.emoji,
+        isPublic: data.visibility === "public",
+        strategy: data.strategy === "stake" ? "steady" : "adventurous",
+        contractAddress: data.contractAddress?.trim() || undefined,
+      });
+
+      if (result.txParams.messages.length > 0) {
+        await sendTransaction({
+          validUntil: Date.now() + 5 * 60 * 1000,
+          messages: result.txParams.messages,
+        });
+      }
+
+      setCreatingNest(false);
+      toast.success(result.txParams.messages.length > 0 ? "Nest created successfully" : "Nest imported successfully");
+    } catch (error: any) {
+      const message = error?.response?.data?.error?.message || "Failed to create Nest.";
+      toast.error(message);
+    }
+  };
+
   return (
     <div className="px-4 pt-2 pb-28 animate-fade-in">
-      <header className="mb-3 px-1">
+      <header className="mb-3 px-1 flex items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-bold flex items-center gap-2">
           <Home className="w-6 h-6 text-primary-deep" />
           Nest Vaults
         </h1>
+        {user?.isAdmin ? (
+          <PopButton size="sm" tone="primary" onClick={() => setCreatingNest(true)} disabled={!connected || createDen.isPending}>
+            <Plus className="w-4 h-4" /> Create Nest
+          </PopButton>
+        ) : null}
       </header>
 
       <p className="text-sm text-muted-foreground px-1 mb-4">
@@ -128,9 +194,19 @@ export const NestScreen: React.FC = () => {
           den={openDen}
           onClose={() => setOpenDen(null)}
           onDeposit={(amount) => handleDeposit(openDen.id, amount)}
+          onWithdraw={() => handleWithdraw(openDen.id)}
           isDepositing={joinDen.isPending}
+          isWithdrawing={leaveDen.isPending}
         />
       )}
+
+      {creatingNest && user?.isAdmin ? (
+        <CreateNestSheet
+          onClose={() => setCreatingNest(false)}
+          onCreate={handleCreateNest}
+          isCreating={createDen.isPending}
+        />
+      ) : null}
     </div>
   );
 };
@@ -186,8 +262,10 @@ const NestSheet: React.FC<{
   den: DisplayDen;
   onClose: () => void;
   onDeposit: (amount: number) => void;
+  onWithdraw: () => void;
   isDepositing?: boolean;
-}> = ({ den, onClose, onDeposit, isDepositing }) => {
+  isWithdrawing?: boolean;
+}> = ({ den, onClose, onDeposit, onWithdraw, isDepositing, isWithdrawing }) => {
   const [amount, setAmount] = React.useState(25);
   const presets = [10, 25, 50, 100];
 
@@ -251,9 +329,9 @@ const NestSheet: React.FC<{
                   amount === p ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border",
                 )}
               >
-                ${p}
-              </button>
-            ))}
+                  {p}
+                </button>
+              ))}
           </div>
           <div className="flex items-center gap-2 bg-muted rounded-2xl border-2 border-border px-3 py-2">
             <span className="font-display font-bold">TON</span>
@@ -272,7 +350,153 @@ const NestSheet: React.FC<{
           >
             {isDepositing ? <Loader2 className="w-4 h-4 animate-spin inline" /> : `Save ${amount} TON`}
           </button>
+          {den.myDeposit && den.myDeposit > 0 ? (
+            <button
+              className="w-full mt-2 bg-card text-foreground rounded-2xl py-3 font-display font-bold border-2 border-border press-effect disabled:opacity-50"
+              onClick={onWithdraw}
+              disabled={isWithdrawing}
+            >
+              {isWithdrawing ? <Loader2 className="w-4 h-4 animate-spin inline" /> : `Withdraw ${den.myDeposit.toFixed(2)} TON`}
+            </button>
+          ) : null}
         </div>
+      </div>
+    </div>
+  );
+};
+
+const CreateNestSheet: React.FC<{
+  onClose: () => void;
+  onCreate: (data: { name: string; emoji: string; visibility: "public" | "private"; strategy: "stake" | "pool"; contractAddress?: string }) => void;
+  isCreating?: boolean;
+}> = ({ onClose, onCreate, isCreating }) => {
+  const [name, setName] = React.useState("");
+  const [emoji, setEmoji] = React.useState("🏠");
+  const [visibility, setVisibility] = React.useState<"public" | "private">("public");
+  const [strategy, setStrategy] = React.useState<"stake" | "pool">("stake");
+  const [contractAddress, setContractAddress] = React.useState("");
+
+  const emojiChoices = ["🏠", "🦊", "🪙", "💎", "🌊", "🛟", "🚀", "🎯", "🌱", "🏝️"];
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Create a new nest"
+      className="fixed inset-0 z-40 flex items-end justify-center bg-foreground/30 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card w-full max-w-md rounded-t-3xl border-t-2 border-x-2 border-border p-5 pb-8 animate-pop-in"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between mb-3">
+          <p className="font-display text-xl font-bold">Create Nest</p>
+          <button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full bg-muted flex items-center justify-center press-effect">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <label className="block">
+          <span className="text-xs font-bold uppercase text-muted-foreground">Nest name</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Kitsu Core Vault"
+            className="mt-1 w-full bg-muted rounded-2xl border-2 border-border px-3 py-2.5 font-display font-bold outline-none focus:border-primary"
+          />
+        </label>
+
+        <div className="mt-3">
+          <span className="text-xs font-bold uppercase text-muted-foreground">Pick an icon</span>
+          <div className="grid grid-cols-5 gap-2 mt-1">
+            {emojiChoices.map((choice) => (
+              <button
+                key={choice}
+                onClick={() => setEmoji(choice)}
+                className={cn(
+                  "h-12 rounded-2xl border-2 text-2xl press-effect",
+                  emoji === choice ? "bg-primary-soft border-primary" : "bg-card border-border",
+                )}
+              >
+                {choice}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <span className="text-xs font-bold uppercase text-muted-foreground">Who can join?</span>
+          <div className="grid grid-cols-2 gap-2 mt-1">
+            {(["private", "public"] as const).map((value) => (
+              <button
+                key={value}
+                onClick={() => setVisibility(value)}
+                className={cn(
+                  "rounded-2xl border-2 p-3 text-left press-effect",
+                  visibility === value ? "bg-primary-soft border-primary" : "bg-card border-border",
+                )}
+              >
+                <p className="font-display font-bold inline-flex items-center gap-1.5 text-sm">
+                  {value === "public" ? <Globe2 className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                  {value === "public" ? "Public" : "Private"}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <span className="text-xs font-bold uppercase text-muted-foreground">Strategy</span>
+          <div className="grid grid-cols-2 gap-2 mt-1">
+            <button
+              onClick={() => setStrategy("stake")}
+              className={cn(
+                "rounded-2xl border-2 p-3 text-left press-effect",
+                strategy === "stake" ? "bg-accent-soft border-accent" : "bg-card border-border",
+              )}
+            >
+              <p className="font-display font-bold text-sm">🛟 TonStakers</p>
+              <p className="text-[11px] text-muted-foreground">Steady strategy</p>
+            </button>
+            <button
+              onClick={() => setStrategy("pool")}
+              className={cn(
+                "rounded-2xl border-2 p-3 text-left press-effect",
+                strategy === "pool" ? "bg-secondary-soft border-secondary" : "bg-card border-border",
+              )}
+            >
+              <p className="font-display font-bold text-sm">🚀 STON.fi</p>
+              <p className="text-[11px] text-muted-foreground">Pool strategy</p>
+            </button>
+          </div>
+        </div>
+
+        <label className="block mt-4">
+          <span className="text-xs font-bold uppercase text-muted-foreground">Existing contract address (optional)</span>
+          <input
+            value={contractAddress}
+            onChange={(e) => setContractAddress(e.target.value)}
+            placeholder="Paste deployed NestVault address to import"
+            className="mt-1 w-full bg-muted rounded-2xl border-2 border-border px-3 py-2.5 font-display font-bold outline-none focus:border-primary"
+          />
+        </label>
+
+        <PopButton
+          block
+          tone="primary"
+          className="mt-5"
+          disabled={!name.trim() || isCreating}
+          onClick={() => onCreate({ name: name.trim(), emoji, visibility, strategy, contractAddress })}
+        >
+          {isCreating ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" /> Creating...
+            </>
+          ) : (
+            "Create Nest"
+          )}
+        </PopButton>
       </div>
     </div>
   );

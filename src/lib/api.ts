@@ -53,6 +53,7 @@ export interface ApiError {
 export interface User {
   id: string;
   walletAddr: string;
+  isAdmin: boolean;
   username: string | null;
   tonHandle: string | null;
   xp: number;
@@ -77,6 +78,12 @@ export interface Goal {
   dueDate: string | null;
   isArchived: boolean;
   createdAt: string;
+}
+
+export interface WithdrawResponse {
+  left?: boolean;
+  amount?: string;
+  txParams: TonConnectTxParams;
 }
 
 export interface TonConnectTxParams {
@@ -190,14 +197,14 @@ export const apiClient = {
   getDen: (id: string) =>
     api.get<ApiResponse<{ den: DenWithMembers }>>(`/dens/${id}`),
   
-  createDen: (data: { name: string; emoji?: string; isPublic: boolean; strategy: 'steady' | 'adventurous' }) =>
+  createDen: (data: { name: string; emoji?: string; isPublic: boolean; strategy: 'steady' | 'adventurous'; contractAddress?: string }) =>
     api.post<ApiResponse<{ den: Den; txParams: TonConnectTxParams }>>('/dens', data),
   
   joinDen: (id: string, amountTon: string) =>
     api.post<ApiResponse<{ deposit: { denId: string; amount: string; txParams: TonConnectTxParams } }>>(`/dens/${id}/join`, { amountTon }),
   
   leaveDen: (id: string) =>
-    api.post<ApiResponse<{ left: boolean }>>(`/dens/${id}/leave`),
+    api.post<ApiResponse<WithdrawResponse>>(`/dens/${id}/leave`),
 
   // Portfolio
   getPortfolio: () =>

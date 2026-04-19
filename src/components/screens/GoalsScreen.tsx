@@ -12,17 +12,20 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useGoals, useCreateGoal, useUser } from "@/hooks/queries";
+import { useGoals, useCreateGoal, useDeposit, useWithdraw, useUser } from "@/hooks/queries";
 import { useWallet } from "@/hooks/useWallet";
 import type { Goal } from "@/lib/api";
 
 export const GoalsScreen: React.FC = () => {
   const [creating, setCreating] = React.useState(false);
+  const [openGoal, setOpenGoal] = React.useState<Goal | null>(null);
   const { connected, address, sendTransaction } = useWallet();
   const { data: user } = useUser();
 
   const { data: goals = [], isLoading } = useGoals();
   const createGoal = useCreateGoal();
+  const deposit = useDeposit();
+  const withdraw = useWithdraw();
 
   const handleCreate = async (data: {
     title: string;
@@ -52,6 +55,54 @@ export const GoalsScreen: React.FC = () => {
       toast.success("Goal created! Let's crush it 🎯");
     } catch (error) {
       toast.error("Failed to create goal. Try again.");
+    }
+  };
+
+  const handleDepositGoal = async (goalId: string, amountTon: number) => {
+    if (!connected || !address) {
+      toast.error("Connect your wallet first");
+      return;
+    }
+
+    try {
+      const result = await deposit.mutateAsync({
+        type: "goal",
+        targetId: goalId,
+        amountTon: amountTon.toFixed(8),
+      });
+      await sendTransaction({
+        validUntil: Date.now() + 5 * 60 * 1000,
+        messages: result.txParams.messages,
+      });
+      toast.success(`Deposited ${amountTon} TON`);
+      setOpenGoal(null);
+    } catch (error: any) {
+      const message = error?.response?.data?.error?.message || "Failed to deposit.";
+      toast.error(message);
+    }
+  };
+
+  const handleClaimGoal = async (goalId: string) => {
+    if (!connected || !address) {
+      toast.error("Connect your wallet first");
+      return;
+    }
+
+    try {
+      const result = await withdraw.mutateAsync({
+        type: "goal",
+        sourceId: goalId,
+        amountTon: "0",
+      });
+      await sendTransaction({
+        validUntil: Date.now() + 5 * 60 * 1000,
+        messages: result.txParams.messages,
+      });
+      toast.success("Claim request sent");
+      setOpenGoal(null);
+    } catch (error: any) {
+      const message = error?.response?.data?.error?.message || "Failed to claim goal.";
+      toast.error(message);
     }
   };
 
@@ -88,7 +139,7 @@ export const GoalsScreen: React.FC = () => {
       ) : (
         <div className="space-y-3">
           {goals.map((goal) => (
-            <GoalCard key={goal.id} goal={goal} />
+            <GoalCard key={goal.id} goal={goal} onOpen={() => setOpenGoal(goal)} />
           ))}
         </div>
       )}
@@ -100,17 +151,28 @@ export const GoalsScreen: React.FC = () => {
           isCreating={createGoal.isPending}
         />
       )}
+
+      {openGoal && (
+        <GoalSheet
+          goal={openGoal}
+          onClose={() => setOpenGoal(null)}
+          onDeposit={(amount) => handleDepositGoal(openGoal.id, amount)}
+          onClaim={() => handleClaimGoal(openGoal.id)}
+          isDepositing={deposit.isPending}
+          isClaiming={withdraw.isPending}
+        />
+      )}
     </div>
   );
 };
 
-const GoalCard: React.FC<{ goal: Goal }> = ({ goal }) => {
+const GoalCard: React.FC<{ goal: Goal; onOpen: () => void }> = ({ goal, onOpen }) => {
   const current = parseFloat(goal.currentTon || "0");
   const target = parseFloat(goal.targetTon || "1");
   const pct = target > 0 ? Math.min((current / target) * 100, 100) : 0;
 
   return (
-    <div className="game-card p-4">
+    <button onClick={onOpen} className="game-card p-4 w-full text-left press-effect">
       <div className="flex items-start gap-3">
         <div className="w-12 h-12 rounded-2xl border-2 flex items-center justify-center text-2xl shrink-0 bg-muted border-border">
           {goal.emoji || "🎯"}
@@ -151,6 +213,71 @@ const GoalCard: React.FC<{ goal: Goal }> = ({ goal }) => {
               <TrendingUp className="w-3 h-3" /> {goal.strategy === "stonfi" ? "DEX" : "Staking"}
             </span>
           </div>
+        </div>
+      </div>
+    </button>
+  );
+};
+
+const GoalSheet: React.FC<{
+  goal: Goal;
+  onClose: () => void;
+  onDeposit: (amount: number) => void;
+  onClaim: () => void;
+  isDepositing?: boolean;
+  isClaiming?: boolean;
+}> = ({ goal, onClose, onDeposit, onClaim, isDepositing, isClaiming }) => {
+  const [amount, setAmount] = React.useState(10);
+  const presets = [5, 10, 25, 50];
+  const current = parseFloat(goal.currentTon || "0");
+  const target = parseFloat(goal.targetTon || "0");
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label={`${goal.title} details`} className="fixed inset-0 z-40 flex items-end justify-center bg-foreground/30 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+      <div className="bg-card w-full max-w-md rounded-t-3xl border-t-2 border-x-2 border-border p-5 pb-8 animate-pop-in" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-14 h-14 rounded-2xl border-2 flex items-center justify-center text-3xl shrink-0 bg-muted border-border">{goal.emoji || "🎯"}</div>
+            <div>
+              <p className="font-display text-xl font-bold">{goal.title}</p>
+              <p className="text-xs text-muted-foreground">{goal.visibility} · {goal.strategy === "stonfi" ? "STON.fi" : "TonStakers"}</p>
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full bg-muted flex items-center justify-center press-effect">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2 text-center">
+          <div className="bg-muted rounded-2xl p-2 border border-border">
+            <p className="text-[10px] uppercase font-bold text-muted-foreground">Progress</p>
+            <p className="font-display font-bold tabular-nums">{current.toFixed(2)} / {target.toFixed(2)} TON</p>
+          </div>
+          <div className="bg-muted rounded-2xl p-2 border border-border">
+            <p className="text-[10px] uppercase font-bold text-muted-foreground">Strategy</p>
+            <p className="font-display font-bold">{goal.strategy === "stonfi" ? "STON.fi" : "TonStakers"}</p>
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <p className="font-display font-bold mb-2">Deposit TON</p>
+          <div className="grid grid-cols-4 gap-2 mb-2">
+            {presets.map((p) => (
+              <button key={p} onClick={() => setAmount(p)} className={cn("rounded-2xl border-2 py-2 font-display font-bold text-sm press-effect", amount === p ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border")}>
+                {p}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 bg-muted rounded-2xl border-2 border-border px-3 py-2">
+            <span className="font-display font-bold">TON</span>
+            <input type="number" min={0.1} value={amount} onChange={(e) => setAmount(Math.max(0.1, Number(e.target.value) || 0))} className="flex-1 bg-transparent outline-none font-display font-bold text-lg tabular-nums" />
+          </div>
+          <button className="w-full mt-4 bg-primary text-primary-foreground rounded-2xl py-3 font-display font-bold press-effect disabled:opacity-50" onClick={() => onDeposit(amount)} disabled={isDepositing}>
+            {isDepositing ? <Loader2 className="w-4 h-4 animate-spin inline" /> : `Deposit ${amount} TON`}
+          </button>
+          <button className="w-full mt-2 bg-card text-foreground rounded-2xl py-3 font-display font-bold border-2 border-border press-effect disabled:opacity-50" onClick={onClaim} disabled={isClaiming}>
+            {isClaiming ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Claim / Withdraw"}
+          </button>
         </div>
       </div>
     </div>
