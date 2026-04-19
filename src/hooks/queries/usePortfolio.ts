@@ -1,10 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient, type Portfolio } from '@/lib/api';
 import { queryKeys } from '@/lib/queryKeys';
-import { useAuthToken } from '@/hooks/useAuthToken';
 
 export function usePortfolio() {
-  const token = useAuthToken();
   return useQuery({
     queryKey: queryKeys.portfolio,
     queryFn: async (): Promise<Portfolio> => {
@@ -12,7 +10,7 @@ export function usePortfolio() {
       return response.data.data.portfolio;
     },
     staleTime: 1000 * 60, // 1 minute
-    enabled: !!token,
+    retry: 1,
   });
 }
 

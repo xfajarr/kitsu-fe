@@ -4,6 +4,7 @@ import { BottomNav, type TabKey } from "@/components/BottomNav";
 import { HomeScreen } from "@/components/screens/HomeScreen";
 import { GoalsScreen } from "@/components/screens/GoalsScreen";
 import { NestScreen } from "@/components/screens/NestScreen";
+import { ProfileScreen } from "@/components/screens/ProfileScreen";
 import { FoxChatScreen } from "@/components/screens/FoxChatScreen";
 import { useUser } from "@/hooks/queries";
 import { useWallet } from "@/hooks/useWallet";
@@ -41,6 +42,7 @@ const Index = () => {
           {tab === "goals" && <GoalsScreen />}
           {tab === "nest" && <NestScreen />}
           {tab === "fox" && <FoxChatScreen />}
+          {tab === "profile" && <ProfileScreen />}
         </div>
       </main>
       <BottomNav active={tab} onChange={handleNavigate} />
