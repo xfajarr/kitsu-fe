@@ -2,6 +2,7 @@ import * as React from "react";
 import { Flame, Trophy } from "lucide-react";
 import tonCoin from "@/assets/ton-coin.png";
 import { cn } from "@/lib/utils";
+import { WalletButton } from "@/components/WalletButton";
 
 type Props = {
   level: number;
@@ -50,6 +51,9 @@ export const TopBar: React.FC<Props> = ({ level, xp, xpNext, streak, username })
         <div className="shrink-0 flex items-center gap-1 bg-secondary-soft border-2 border-secondary/70 text-secondary-foreground rounded-2xl px-2.5 py-1.5">
           <Trophy className="w-4 h-4" />
         </div>
+        
+        {/* Wallet Button */}
+        <WalletButton />
       </div>
     </header>
   );
