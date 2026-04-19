@@ -15,12 +15,15 @@ import { toast } from "sonner";
 import { useGoals, useCreateGoal, useDepositGoal, useClaimGoal, useUser } from "@/hooks/queries";
 import { useWallet } from "@/hooks/useWallet";
 import type { Goal } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 
 export const GoalsScreen: React.FC = () => {
   const [creating, setCreating] = React.useState(false);
   const [openGoal, setOpenGoal] = React.useState<Goal | null>(null);
   const { connected, address, sendTransaction } = useWallet();
   const { data: user } = useUser();
+  const queryClient = useQueryClient();
 
   const { data: goals = [], isLoading } = useGoals();
   const createGoal = useCreateGoal();
@@ -51,6 +54,8 @@ export const GoalsScreen: React.FC = () => {
         validUntil: Date.now() + 5 * 60 * 1000,
         messages: result.txParams.messages,
       });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.goals });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.portfolio });
       setCreating(false);
       toast.success("Goal created! Let's crush it 🎯");
     } catch (error) {
@@ -73,6 +78,8 @@ export const GoalsScreen: React.FC = () => {
         validUntil: Date.now() + 5 * 60 * 1000,
         messages: result.txParams.messages,
       });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.goals });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.portfolio });
       toast.success(`Deposited ${amountTon} TON`);
       setOpenGoal(null);
     } catch (error: any) {
@@ -93,6 +100,8 @@ export const GoalsScreen: React.FC = () => {
         validUntil: Date.now() + 5 * 60 * 1000,
         messages: result.txParams.messages,
       });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.goals });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.portfolio });
       toast.success("Claim request sent");
       setOpenGoal(null);
     } catch (error: any) {
@@ -164,6 +173,7 @@ export const GoalsScreen: React.FC = () => {
 const GoalCard: React.FC<{ goal: Goal; onOpen: () => void }> = ({ goal, onOpen }) => {
   const current = parseFloat(goal.currentTon || "0");
   const target = parseFloat(goal.targetTon || "1");
+  const yieldTon = parseFloat(goal.yieldTon || "0");
   const pct = target > 0 ? Math.min((current / target) * 100, 100) : 0;
 
   return (
@@ -207,6 +217,11 @@ const GoalCard: React.FC<{ goal: Goal; onOpen: () => void }> = ({ goal, onOpen }
             <span className="inline-flex items-center gap-1 text-muted-foreground font-bold">
               <TrendingUp className="w-3 h-3" /> {goal.strategy === "stonfi" ? "DEX" : "Staking"}
             </span>
+            {yieldTon !== 0 && (
+              <span className="inline-flex items-center gap-1 text-success-foreground font-bold">
+                <Sparkles className="w-3 h-3" /> Yield {yieldTon > 0 ? "+" : ""}{yieldTon.toFixed(2)} TON
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -226,6 +241,8 @@ const GoalSheet: React.FC<{
   const presets = [5, 10, 25, 50];
   const current = parseFloat(goal.currentTon || "0");
   const target = parseFloat(goal.targetTon || "0");
+  const principal = parseFloat(goal.principalTon || goal.currentTon || "0");
+  const yieldTon = parseFloat(goal.yieldTon || "0");
 
   return (
     <div role="dialog" aria-modal="true" aria-label={`${goal.title} details`} className="fixed inset-0 z-40 flex items-end justify-center bg-foreground/30 backdrop-blur-sm animate-fade-in" onClick={onClose}>
@@ -254,6 +271,21 @@ const GoalSheet: React.FC<{
           </div>
         </div>
 
+        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+          <div className="bg-muted rounded-2xl p-2 border border-border">
+            <p className="text-[10px] uppercase font-bold text-muted-foreground">Principal</p>
+            <p className="font-display font-bold tabular-nums">{principal.toFixed(2)} TON</p>
+          </div>
+          <div className="bg-muted rounded-2xl p-2 border border-border">
+            <p className="text-[10px] uppercase font-bold text-muted-foreground">Value</p>
+            <p className="font-display font-bold tabular-nums">{current.toFixed(2)} TON</p>
+          </div>
+          <div className="bg-muted rounded-2xl p-2 border border-border">
+            <p className="text-[10px] uppercase font-bold text-muted-foreground">Yield</p>
+            <p className="font-display font-bold tabular-nums text-success-foreground">{yieldTon > 0 ? "+" : ""}{yieldTon.toFixed(2)} TON</p>
+          </div>
+        </div>
+
         <div className="mt-5">
           <p className="font-display font-bold mb-2">Deposit TON</p>
           <div className="grid grid-cols-4 gap-2 mb-2">
@@ -270,8 +302,8 @@ const GoalSheet: React.FC<{
           <button className="w-full mt-4 bg-primary text-primary-foreground rounded-2xl py-3 font-display font-bold press-effect disabled:opacity-50" onClick={() => onDeposit(amount)} disabled={isDepositing}>
             {isDepositing ? <Loader2 className="w-4 h-4 animate-spin inline" /> : `Deposit ${amount} TON`}
           </button>
-          <button className="w-full mt-2 bg-card text-foreground rounded-2xl py-3 font-display font-bold border-2 border-border press-effect disabled:opacity-50" onClick={onClaim} disabled={isClaiming}>
-            {isClaiming ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Claim / Withdraw"}
+          <button className="w-full mt-2 bg-card text-foreground rounded-2xl py-3 font-display font-bold border-2 border-border press-effect disabled:opacity-50" onClick={onClaim} disabled={isClaiming || goal.canClaim === false}>
+            {isClaiming ? <Loader2 className="w-4 h-4 animate-spin inline" /> : goal.canClaim === false ? "Waiting for strategy unwind" : "Claim / Withdraw"}
           </button>
         </div>
       </div>

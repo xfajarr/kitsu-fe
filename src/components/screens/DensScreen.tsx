@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useDens, useMyDens, useJoinDen, useLeaveDen, useUser } from "@/hooks/queries";
+import { useConfirmJoinDen, useDens, useMyDens, useJoinDen, useLeaveDen, useUser } from "@/hooks/queries";
 import { useWallet } from "@/hooks/useWallet";
 import type { Den } from "@/lib/api";
 
@@ -43,6 +43,7 @@ export const DensScreen: React.FC = () => {
   const { data: publicDens, isLoading: exploreLoading } = useDens();
   const { data: myDensData, isLoading: mineLoading } = useMyDens();
   const joinDen = useJoinDen();
+  const confirmJoinDen = useConfirmJoinDen();
   const leaveDen = useLeaveDen();
 
   const isLoading = tab === "mine" ? mineLoading : exploreLoading;
@@ -71,10 +72,21 @@ export const DensScreen: React.FC = () => {
         denId,
         amountTon: amountTon.toFixed(8),
       });
-      await sendTransaction({
+      const txResult = await sendTransaction({
         validUntil: Date.now() + 5 * 60 * 1000,
         messages: result.deposit.txParams.messages,
       });
+
+      if (!txResult?.boc) {
+        throw new Error("Missing wallet transaction BOC");
+      }
+
+      await confirmJoinDen.mutateAsync({
+        denId,
+        confirmationToken: result.deposit.confirmationToken,
+        txBoc: txResult.boc,
+      });
+
       toast.success(`Deposited ${amountTon} TON into your den 🦊`, {
         description: "Foxy will start growing it for you.",
       });
@@ -162,7 +174,7 @@ export const DensScreen: React.FC = () => {
           onClose={() => setOpenDen(null)}
           onDeposit={(amount) => handleDeposit(openDen.id, amount)}
           onLeave={() => handleLeave(openDen.id)}
-          isDepositing={joinDen.isPending}
+          isDepositing={joinDen.isPending || confirmJoinDen.isPending}
           isLeaving={leaveDen.isPending}
         />
       )}

@@ -75,6 +75,14 @@ export interface Goal {
   currentTon: string;
   targetUsd: string;
   currentUsd: string;
+  principalTon?: string;
+  yieldTon?: string;
+  vaultValueTon?: string;
+  totalPrincipalTon?: string;
+  totalYieldTon?: string;
+  canClaim?: boolean;
+  isOnchainSynced?: boolean;
+  lastStrategySyncTime?: string | null;
   dueDate: string | null;
   isArchived: boolean;
   createdAt: string;
@@ -95,6 +103,20 @@ export interface TonConnectTxParams {
   }>;
 }
 
+export interface DenDepositPreparation {
+  denId: string;
+  amount: string;
+  confirmationToken: string;
+  txParams: TonConnectTxParams;
+}
+
+export interface DenDepositConfirmation {
+  denId: string;
+  amount: string;
+  confirmed: boolean;
+  txHash: string;
+}
+
 // Den types
 export interface Den {
   id: string;
@@ -106,10 +128,18 @@ export interface Den {
   contractAddress: string | null;
   apr: string;
   totalDeposited: string;
+  vaultValueTon?: string;
+  totalYieldTon?: string;
   memberCount: number;
   createdAt: string;
   /** Present on GET /dens/mine — user's total deposited TON in this den */
   myDepositTon?: string;
+  myCurrentTon?: string;
+  myYieldTon?: string;
+  mySharesTon?: string;
+  canWithdraw?: boolean;
+  isOnchainSynced?: boolean;
+  lastStrategySyncTime?: string | null;
 }
 
 export interface DenWithMembers extends Den {
@@ -207,7 +237,10 @@ export const apiClient = {
     api.post<ApiResponse<{ den: Den; txParams: TonConnectTxParams }>>('/dens', data),
   
   joinDen: (id: string, amountTon: string) =>
-    api.post<ApiResponse<{ deposit: { denId: string; amount: string; txParams: TonConnectTxParams } }>>(`/dens/${id}/join`, { amountTon }),
+    api.post<ApiResponse<{ deposit: DenDepositPreparation }>>(`/dens/${id}/join`, { amountTon }),
+
+  confirmJoinDen: (id: string, data: { confirmationToken: string; txBoc: string }) =>
+    api.post<ApiResponse<{ deposit: DenDepositConfirmation }>>(`/dens/${id}/join/confirm`, data),
   
   leaveDen: (id: string) =>
     api.post<ApiResponse<WithdrawResponse>>(`/dens/${id}/leave`),

@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useCreateDen, useDens, useMyDens, useJoinDen, useLeaveDen, useUser } from "@/hooks/queries";
+import { useConfirmJoinDen, useCreateDen, useDens, useMyDens, useJoinDen, useLeaveDen, useUser } from "@/hooks/queries";
 import { useWallet } from "@/hooks/useWallet";
 import { queryClient } from "@/App";
 import { queryKeys } from "@/lib/queryKeys";
@@ -28,8 +28,13 @@ type DisplayDen = {
   strategy: string;
   apr: string;
   totalDeposited: string;
+  vaultValueTon?: number;
+  totalYieldTon?: number;
   memberCount: number;
   myDeposit?: number;
+  myCurrentTon?: number;
+  myYieldTon?: number;
+  canWithdraw?: boolean;
   isOwner?: boolean;
 };
 
@@ -43,6 +48,7 @@ export const NestScreen: React.FC = () => {
   const { data: publicDens, isLoading: exploreLoading } = useDens();
   const { data: myDensData, isLoading: mineLoading } = useMyDens();
   const joinDen = useJoinDen();
+  const confirmJoinDen = useConfirmJoinDen();
   const leaveDen = useLeaveDen();
   const createDen = useCreateDen();
 
@@ -52,10 +58,23 @@ export const NestScreen: React.FC = () => {
     const list = tab === "mine" ? (myDensData || []) : (publicDens || []);
     return list.map((d) => ({
       ...d,
+      vaultValueTon: parseFloat(d.vaultValueTon || d.totalDeposited || "0"),
+      totalYieldTon: parseFloat(d.totalYieldTon || "0"),
       myDeposit:
         tab === "mine" && d.myDepositTon != null
           ? parseFloat(d.myDepositTon)
           : 0,
+      myCurrentTon:
+        tab === "mine" && d.myCurrentTon != null
+          ? parseFloat(d.myCurrentTon)
+          : tab === "mine" && d.myDepositTon != null
+            ? parseFloat(d.myDepositTon)
+            : 0,
+      myYieldTon:
+        tab === "mine" && d.myYieldTon != null
+          ? parseFloat(d.myYieldTon)
+          : 0,
+      canWithdraw: d.canWithdraw ?? false,
       isOwner: user?.id != null && d.ownerId === user.id,
     }));
   }, [publicDens, myDensData, tab, user?.id]);
@@ -69,12 +88,27 @@ export const NestScreen: React.FC = () => {
     try {
       const result = await joinDen.mutateAsync({
         denId,
-        amountTon: amountTon.toString(),
+        amountTon: amountTon.toFixed(8),
       });
-      await sendTransaction({
+      const txResult = await sendTransaction({
         validUntil: Date.now() + 5 * 60 * 1000,
         messages: result.deposit.txParams.messages,
       });
+
+      if (!txResult?.boc) {
+        throw new Error("Missing wallet transaction BOC");
+      }
+
+      await confirmJoinDen.mutateAsync({
+        denId,
+        confirmationToken: result.deposit.confirmationToken,
+        txBoc: txResult.boc,
+      });
+
+      await queryClient.invalidateQueries({ queryKey: queryKeys.dens });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.densMine });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.portfolio });
+
       toast.success(`Deposited ${amountTon} TON 🦊`);
       setOpenDen(null);
     } catch (error) {
@@ -94,6 +128,11 @@ export const NestScreen: React.FC = () => {
         validUntil: Date.now() + 5 * 60 * 1000,
         messages: result.txParams.messages,
       });
+
+      await queryClient.invalidateQueries({ queryKey: queryKeys.dens });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.densMine });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.portfolio });
+
       toast.success("Withdraw request sent");
       setOpenDen(null);
     } catch (error: any) {
@@ -225,7 +264,7 @@ export const NestScreen: React.FC = () => {
           onClose={() => setOpenDen(null)}
           onDeposit={(amount) => handleDeposit(openDen.id, amount)}
           onWithdraw={() => handleWithdraw(openDen.id)}
-          isDepositing={joinDen.isPending}
+          isDepositing={joinDen.isPending || confirmJoinDen.isPending}
           isWithdrawing={leaveDen.isPending}
         />
       )}
@@ -273,13 +312,26 @@ const NestCard: React.FC<{ den: DisplayDen; onOpen: () => void }> = ({ den, onOp
               <Users className="w-3 h-3" /> {den.memberCount.toLocaleString()}
             </span>
             <span className="text-muted-foreground font-bold tabular-nums">
-              {parseFloat(den.totalDeposited).toLocaleString()} TON
+              {Number(den.vaultValueTon ?? parseFloat(den.totalDeposited)).toLocaleString()} TON
             </span>
           </div>
 
+          {(den.totalYieldTon || 0) > 0 && (
+            <div className="mt-2 chip bg-success/20 text-success-foreground border border-success/30">
+              <TrendingUp className="w-3 h-3" /> Vault yield +{den.totalYieldTon?.toFixed(2)} TON
+            </div>
+          )}
+
           {den.myDeposit && den.myDeposit > 0 && (
-            <div className="mt-2 chip bg-primary-soft text-primary-deep border border-primary/40">
-              <Sparkles className="w-3 h-3" /> You: {den.myDeposit.toLocaleString()} TON
+            <div className="mt-2 flex flex-wrap gap-2">
+              <div className="chip bg-primary-soft text-primary-deep border border-primary/40">
+                <Sparkles className="w-3 h-3" /> You: {den.myCurrentTon?.toLocaleString() ?? den.myDeposit.toLocaleString()} TON
+              </div>
+              {(den.myYieldTon || 0) !== 0 && (
+                <div className="chip bg-success/20 text-success-foreground border border-success/30">
+                  <TrendingUp className="w-3 h-3" /> Yield {den.myYieldTon && den.myYieldTon > 0 ? "+" : ""}{den.myYieldTon?.toFixed(2)} TON
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -343,9 +395,26 @@ const NestSheet: React.FC<{
           </div>
           <div className="bg-muted rounded-2xl p-2 border border-border">
             <p className="text-[10px] uppercase font-bold text-muted-foreground">Total</p>
-            <p className="font-display font-bold tabular-nums">{parseFloat(den.totalDeposited).toFixed(2)} TON</p>
+            <p className="font-display font-bold tabular-nums">{(den.vaultValueTon ?? parseFloat(den.totalDeposited)).toFixed(2)} TON</p>
           </div>
         </div>
+
+        {den.myDeposit && den.myDeposit > 0 ? (
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <div className="bg-muted rounded-2xl p-2 border border-border">
+              <p className="text-[10px] uppercase font-bold text-muted-foreground">Principal</p>
+              <p className="font-display font-bold tabular-nums">{den.myDeposit.toFixed(2)} TON</p>
+            </div>
+            <div className="bg-muted rounded-2xl p-2 border border-border">
+              <p className="text-[10px] uppercase font-bold text-muted-foreground">Value</p>
+              <p className="font-display font-bold tabular-nums">{(den.myCurrentTon ?? den.myDeposit).toFixed(2)} TON</p>
+            </div>
+            <div className="bg-muted rounded-2xl p-2 border border-border">
+              <p className="text-[10px] uppercase font-bold text-muted-foreground">Yield</p>
+              <p className="font-display font-bold tabular-nums text-success-foreground">{den.myYieldTon && den.myYieldTon > 0 ? "+" : ""}{(den.myYieldTon ?? 0).toFixed(2)} TON</p>
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-5">
           <p className="font-display font-bold mb-2">Deposit TON</p>
@@ -380,13 +449,13 @@ const NestSheet: React.FC<{
           >
             {isDepositing ? <Loader2 className="w-4 h-4 animate-spin inline" /> : `Save ${amount} TON`}
           </button>
-          {den.myDeposit && den.myDeposit > 0 ? (
+          {den.canWithdraw ? (
             <button
               className="w-full mt-2 bg-card text-foreground rounded-2xl py-3 font-display font-bold border-2 border-border press-effect disabled:opacity-50"
               onClick={onWithdraw}
               disabled={isWithdrawing}
             >
-              {isWithdrawing ? <Loader2 className="w-4 h-4 animate-spin inline" /> : `Withdraw ${den.myDeposit.toFixed(2)} TON`}
+              {isWithdrawing ? <Loader2 className="w-4 h-4 animate-spin inline" /> : `Withdraw ${(den.myCurrentTon ?? den.myDeposit ?? 0).toFixed(2)} TON`}
             </button>
           ) : null}
         </div>

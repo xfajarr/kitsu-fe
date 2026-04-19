@@ -52,11 +52,20 @@ export function useCreateDen() {
 }
 
 export function useJoinDen() {
-  const queryClient = useQueryClient();
-  
   return useMutation({
     mutationFn: async ({ denId, amountTon }: { denId: string; amountTon: string }) => {
       const response = await apiClient.joinDen(denId, amountTon);
+      return response.data.data;
+    },
+  });
+}
+
+export function useConfirmJoinDen() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ denId, confirmationToken, txBoc }: { denId: string; confirmationToken: string; txBoc: string }) => {
+      const response = await apiClient.confirmJoinDen(denId, { confirmationToken, txBoc });
       return response.data.data;
     },
     onSuccess: () => {

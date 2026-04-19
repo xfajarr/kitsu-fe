@@ -23,13 +23,15 @@ import {
   useGoals,
   useCreateGoal,
   useTransactions,
-  useDeposit,
+  useDepositGoal,
 } from "@/hooks/queries";
 import { useAuthToken } from "@/hooks/useAuthToken";
 import { useWallet } from "@/hooks/useWallet";
 import type { Goal, Transaction, Portfolio } from "@/lib/api";
 import { calculateLevelFromXp } from "@/lib/gamification";
 import { format } from "date-fns";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 
 type Section = "overview" | "assets" | "goals" | "activity";
 
@@ -38,6 +40,7 @@ export const ProfileScreen: React.FC = () => {
   const [section, setSection] = React.useState<Section>("overview");
   const [creatingGoal, setCreatingGoal] = React.useState(false);
   const { connected, sendTransaction } = useWallet();
+  const queryClient = useQueryClient();
 
   const { data: user, isLoading: userLoading } = useUser();
   const { data: portfolio } = usePortfolio();
@@ -45,7 +48,7 @@ export const ProfileScreen: React.FC = () => {
   
   const { data: transactions = [], isLoading: txLoading } = useTransactions();
   const createGoal = useCreateGoal();
-  const depositMut = useDeposit();
+  const depositGoal = useDepositGoal();
 
   const portfolioUsd = portfolio?.totalUsd ?? 0;
   const savedUsd = goals.reduce((s, g) => s + parseFloat(g.currentUsd || "0"), 0);
@@ -81,6 +84,8 @@ export const ProfileScreen: React.FC = () => {
         validUntil: Date.now() + 5 * 60 * 1000,
         messages: result.txParams.messages,
       });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.goals });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.portfolio });
       setCreatingGoal(false);
       toast.success("Goal added! Foxy will help you crush it 🎯");
     } catch {
@@ -199,14 +204,13 @@ export const ProfileScreen: React.FC = () => {
           onAdd={() => setCreatingGoal(true)}
           onDepositTon={async (id, amountTon) => {
             try {
-              const tx = await depositMut.mutateAsync({ type: "goal", targetId: id, amountTon: amountTon.toFixed(8) });
-              if (!tx.txParams) {
-                throw new Error("Missing transaction params");
-              }
+              const tx = await depositGoal.mutateAsync({ id, amountTon: amountTon.toFixed(8) });
               await sendTransaction({
                 validUntil: Date.now() + 5 * 60 * 1000,
                 messages: tx.txParams.messages,
               });
+              await queryClient.invalidateQueries({ queryKey: queryKeys.goals });
+              await queryClient.invalidateQueries({ queryKey: queryKeys.portfolio });
               toast.success(`+${amountTon} TON toward your goal`);
             } catch {
               toast.error("Deposit failed.");
