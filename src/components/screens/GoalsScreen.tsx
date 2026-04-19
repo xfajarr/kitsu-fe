@@ -228,7 +228,7 @@ const CreateGoalSheet: React.FC<{
           <input
             type="number"
             value={targetTon}
-            onChange={(e) => setTargetTon(Math.max(1, Number(e.target.value) || 0)}
+            onChange={(e) => setTargetTon(Math.max(1, Number(e.target.value) || 0))}
             className="mt-1 w-full bg-muted rounded-2xl border-2 border-border px-3 py-2.5 font-display font-bold outline-none focus:border-primary"
           />
         </label>
