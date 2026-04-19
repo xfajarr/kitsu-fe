@@ -1,13 +1,13 @@
 import * as React from "react";
-import { Home, Vault, MessageCircleHeart, User } from "lucide-react";
+import { Home, Target, Home as NestIcon, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type TabKey = "home" | "dens" | "fox" | "profile";
+export type TabKey = "home" | "goals" | "nest" | "profile";
 
 const tabs: { key: TabKey; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
   { key: "home", label: "Home", Icon: Home },
-  { key: "dens", label: "Dens", Icon: Vault },
-  { key: "fox", label: "Foxy", Icon: MessageCircleHeart },
+  { key: "goals", label: "Goals", Icon: Target },
+  { key: "nest", label: "Nest", Icon: NestIcon },
   { key: "profile", label: "Me", Icon: User },
 ];
 

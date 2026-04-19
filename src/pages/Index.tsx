@@ -2,8 +2,8 @@ import * as React from "react";
 import { TopBar } from "@/components/TopBar";
 import { BottomNav, type TabKey } from "@/components/BottomNav";
 import { HomeScreen } from "@/components/screens/HomeScreen";
-import { DensScreen } from "@/components/screens/DensScreen";
-import { FoxChatScreen } from "@/components/screens/FoxChatScreen";
+import { GoalsScreen } from "@/components/screens/GoalsScreen";
+import { NestScreen } from "@/components/screens/NestScreen";
 import { ProfileScreen } from "@/components/screens/ProfileScreen";
 import { useUser } from "@/hooks/queries";
 import { useWallet } from "@/hooks/useWallet";
@@ -13,7 +13,6 @@ const Index = () => {
   const { address, connected } = useWallet();
   const { data: user, isLoading: userLoading } = useUser();
 
-  // Calculate level info for XP bar
   const xpNext = user ? Math.floor(100 * Math.pow(1.5, user.level - 1)) : 100;
   const xpInCurrentLevel = user ? user.xp % xpNext : 0;
 
@@ -33,8 +32,8 @@ const Index = () => {
               onNavigate={setTab}
             />
           )}
-          {tab === "dens" && <DensScreen />}
-          {tab === "fox" && <FoxChatScreen />}
+          {tab === "goals" && <GoalsScreen />}
+          {tab === "nest" && <NestScreen />}
           {tab === "profile" && <ProfileScreen />}
         </div>
       </main>

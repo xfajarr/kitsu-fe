@@ -151,7 +151,7 @@ export interface Transaction {
 // API methods
 export const apiClient = {
   // Auth
-  connect: (address: string, signature: string, timestamp: number) =>
+  connect: (address: string, signature?: string, timestamp?: number) =>
     api.post<ApiResponse<{ token: string; user: User }>>('/auth/connect', { address, signature, timestamp }),
   
   getMe: () =>

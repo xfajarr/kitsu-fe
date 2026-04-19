@@ -20,7 +20,7 @@ export function useConnectWallet() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ address, signature, timestamp }: { address: string; signature: string; timestamp: number }) => {
+    mutationFn: async ({ address, signature, timestamp }: { address: string; signature?: string; timestamp?: number }) => {
       const response = await apiClient.connect(address, signature, timestamp);
       return response.data.data;
     },

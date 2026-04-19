@@ -22,7 +22,6 @@ import {
   usePortfolio,
   useGoals,
   useCreateGoal,
-  useLeaderboard,
   useTransactions,
   useDeposit,
 } from "@/hooks/queries";
@@ -32,7 +31,7 @@ import type { Goal, Transaction, Portfolio } from "@/lib/api";
 import { calculateLevelFromXp } from "@/lib/gamification";
 import { format } from "date-fns";
 
-type Section = "overview" | "assets" | "goals" | "leaderboard" | "activity";
+type Section = "overview" | "assets" | "goals" | "activity";
 
 export const ProfileScreen: React.FC = () => {
   const token = useAuthToken();
@@ -43,7 +42,7 @@ export const ProfileScreen: React.FC = () => {
   const { data: user, isLoading: userLoading } = useUser();
   const { data: portfolio } = usePortfolio();
   const { data: goals = [], isLoading: goalsLoading } = useGoals();
-  const { data: leaderboard = [], isLoading: lbLoading } = useLeaderboard();
+  
   const { data: transactions = [], isLoading: txLoading } = useTransactions();
   const createGoal = useCreateGoal();
   const depositMut = useDeposit();
@@ -95,7 +94,7 @@ export const ProfileScreen: React.FC = () => {
         <div className="game-card p-8 text-center">
           <p className="font-display font-bold text-lg">Profile</p>
           <p className="text-sm text-muted-foreground mt-2">
-            Connect your wallet and sign in to see your goals, leaderboard rank, and activity.
+            Connect your wallet and sign in to see your goals and activity.
           </p>
         </div>
       </div>
@@ -165,7 +164,6 @@ export const ProfileScreen: React.FC = () => {
             { k: "overview", label: "Overview", Icon: Sparkles },
             { k: "assets", label: "Coins", Icon: Wallet },
             { k: "goals", label: "Goals", Icon: Target },
-            { k: "leaderboard", label: "Ranks", Icon: Trophy },
             { k: "activity", label: "Activity", Icon: ActivityIcon },
           ] as const
         ).map(({ k, label, Icon }) => (
@@ -189,8 +187,6 @@ export const ProfileScreen: React.FC = () => {
           goals={goals}
           goalsLoading={goalsLoading}
           userId={user.id}
-          leaderboard={leaderboard}
-          lbLoading={lbLoading}
           transactions={transactions}
           txLoading={txLoading}
         />
@@ -218,7 +214,7 @@ export const ProfileScreen: React.FC = () => {
           }}
         />
       )}
-      {section === "leaderboard" && <LeaderboardSection rows={leaderboard} loading={lbLoading} userId={user.id} />}
+      
       {section === "activity" && <ActivitySection txs={transactions} loading={txLoading} />}
 
       {creatingGoal && <CreateGoalSheet onClose={() => setCreatingGoal(false)} onCreate={addGoal} />}
@@ -237,16 +233,13 @@ const OverviewSection: React.FC<{
   goals: Goal[];
   goalsLoading: boolean;
   userId: string;
-  leaderboard: Array<{ rank: number; userId: string; username: string; xp: number; level: number }>;
-  lbLoading: boolean;
   transactions: Transaction[];
   txLoading: boolean;
-}> = ({ goals, goalsLoading, userId, leaderboard, lbLoading, transactions, txLoading }) => {
+}> = ({ goals, goalsLoading, userId, transactions, txLoading }) => {
   const top = goals[0];
   const recent = transactions.slice(0, 5);
-  const me = leaderboard.find((r) => r.userId === userId);
 
-  if (goalsLoading || lbLoading) {
+  if (goalsLoading || txLoading) {
     return (
       <div className="flex justify-center py-12">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -283,20 +276,7 @@ const OverviewSection: React.FC<{
         </article>
       )}
 
-      {me && (
-        <article className="game-card p-4 flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-secondary-soft border-2 border-secondary/60 flex items-center justify-center text-2xl">
-            <Trophy className="w-6 h-6 text-secondary-deep" />
-          </div>
-          <div className="flex-1">
-            <p className="font-display font-bold">You&apos;re rank #{me.rank}</p>
-            <p className="text-xs text-muted-foreground">Keep saving to climb the leaderboard!</p>
-          </div>
-          <span className="chip bg-secondary-soft text-secondary-foreground border border-secondary/60 tabular-nums">
-            {me.xp.toLocaleString()} XP
-          </span>
-        </article>
-      )}
+      
 
       <article>
         <p className="font-display font-bold mb-2 inline-flex items-center gap-2 px-1">

@@ -12,6 +12,7 @@ export function WalletAuthSync() {
   const wallet = useTonWallet();
   const connectWallet = useConnectWallet();
   const lastAuthKey = React.useRef<string | null>(null);
+  const isLocalhost = typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
   React.useEffect(() => {
     const payload =
@@ -32,6 +33,27 @@ export function WalletAuthSync() {
       }
       const proofItem = w.connectItems?.tonProof;
       if (!proofItem || !("proof" in proofItem)) {
+        if (!isLocalhost) {
+          return;
+        }
+
+        const localKey = `${w.account.address}:local-dev`;
+        if (lastAuthKey.current === localKey) {
+          return;
+        }
+
+        lastAuthKey.current = localKey;
+        try {
+          await connectWallet.mutateAsync({
+            address: w.account.address,
+            timestamp: Math.floor(Date.now() / 1000),
+          });
+          notifyAuthChanged();
+          toast.success("Local wallet connected in dev mode.");
+        } catch {
+          lastAuthKey.current = null;
+          toast.error("Local dev wallet auth failed.");
+        }
         return;
       }
       const { signature, timestamp } = proofItem.proof;
@@ -49,7 +71,7 @@ export function WalletAuthSync() {
         toast.error("Could not sign in with your wallet. Try reconnecting.");
       }
     });
-  }, [tonConnectUI, connectWallet]);
+  }, [tonConnectUI, connectWallet, isLocalhost]);
 
   // If wallet restored from storage without proof, keep existing JWT (if any).
   React.useEffect(() => {
