@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   useJoinDen: vi.fn(),
   useConfirmJoinDen: vi.fn(),
   useLeaveDen: vi.fn(),
+  useSyncDen: vi.fn(),
+  useUnwindDen: vi.fn(),
   useCreateDen: vi.fn(),
   useUser: vi.fn(),
   useWallet: vi.fn(),
@@ -24,6 +26,8 @@ vi.mock('@/hooks/queries', () => ({
   useJoinDen: () => mocks.useJoinDen(),
   useConfirmJoinDen: () => mocks.useConfirmJoinDen(),
   useLeaveDen: () => mocks.useLeaveDen(),
+  useSyncDen: () => mocks.useSyncDen(),
+  useUnwindDen: () => mocks.useUnwindDen(),
   useCreateDen: () => mocks.useCreateDen(),
   useUser: () => mocks.useUser(),
 }));
@@ -75,6 +79,14 @@ describe('NestScreen', () => {
     mocks.useConfirmJoinDen.mockReturnValue(createMutation({ ok: true }));
     mocks.useLeaveDen.mockReturnValue(createMutation({
       txParams: { messages: [{ address: 'vault-1', amount: '50000000', payload: 'withdraw-payload' }] },
+    }));
+    mocks.useSyncDen.mockReturnValue(createMutation({
+      txParams: { messages: [{ address: 'vault-1', amount: '50000000', payload: 'sync-payload' }] },
+      amount: '1.00000000',
+    }));
+    mocks.useUnwindDen.mockReturnValue(createMutation({
+      txParams: { messages: [{ address: 'vault-1', amount: '50000000', payload: 'unwind-payload' }] },
+      amount: '5.00000000',
     }));
     mocks.useCreateDen.mockReturnValue(createMutation({
       txParams: {

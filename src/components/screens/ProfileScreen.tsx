@@ -22,6 +22,7 @@ import {
   usePortfolio,
   useGoals,
   useCreateGoal,
+  useConfigureGoal,
   useTransactions,
   useDepositGoal,
 } from "@/hooks/queries";
@@ -48,7 +49,10 @@ export const ProfileScreen: React.FC = () => {
   
   const { data: transactions = [], isLoading: txLoading } = useTransactions();
   const createGoal = useCreateGoal();
+  const configureGoal = useConfigureGoal();
   const depositGoal = useDepositGoal();
+
+  const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
   const portfolioUsd = portfolio?.totalUsd ?? 0;
   const savedUsd = goals.reduce((s, g) => s + parseFloat(g.currentUsd || "0"), 0);
@@ -84,7 +88,35 @@ export const ProfileScreen: React.FC = () => {
         validUntil: Date.now() + 5 * 60 * 1000,
         messages: result.txParams.messages,
       });
+
+      if (result.configureAfterDeploy) {
+        let configured = false;
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          try {
+            const configure = await configureGoal.mutateAsync(result.goal.id);
+            await sendTransaction({
+              validUntil: Date.now() + 5 * 60 * 1000,
+              messages: configure.txParams.messages,
+            });
+            configured = true;
+            break;
+          } catch (error: any) {
+            const code = error?.response?.data?.error?.code;
+            if (code === "GOAL_NOT_READY" && attempt < 5) {
+              await wait(1500);
+              continue;
+            }
+            throw error;
+          }
+        }
+
+        if (!configured) {
+          throw new Error("Goal configuration did not complete");
+        }
+      }
+
       await queryClient.invalidateQueries({ queryKey: queryKeys.goals });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.goalsPublic });
       await queryClient.invalidateQueries({ queryKey: queryKeys.portfolio });
       setCreatingGoal(false);
       toast.success("Goal added! Foxy will help you crush it 🎯");

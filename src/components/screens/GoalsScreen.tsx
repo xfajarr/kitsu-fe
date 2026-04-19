@@ -12,23 +12,48 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useGoals, useCreateGoal, useDepositGoal, useClaimGoal, useUser } from "@/hooks/queries";
+import { useClaimGoal, useConfigureGoal, useCreateGoal, useDepositGoal, useGoals, usePublicGoals, useSyncGoal, useUnwindGoal, useUser } from "@/hooks/queries";
 import { useWallet } from "@/hooks/useWallet";
 import type { Goal } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 
+type Tab = "mine" | "explore";
+
 export const GoalsScreen: React.FC = () => {
+  const [tab, setTab] = React.useState<Tab>("mine");
   const [creating, setCreating] = React.useState(false);
   const [openGoal, setOpenGoal] = React.useState<Goal | null>(null);
   const { connected, address, sendTransaction } = useWallet();
   const { data: user } = useUser();
   const queryClient = useQueryClient();
 
-  const { data: goals = [], isLoading } = useGoals();
+  const { data: myGoals = [], isLoading: myGoalsLoading } = useGoals();
+  const { data: publicGoals = [], isLoading: publicGoalsLoading } = usePublicGoals();
   const createGoal = useCreateGoal();
+  const configureGoal = useConfigureGoal();
   const depositGoal = useDepositGoal();
   const claimGoal = useClaimGoal();
+  const syncGoal = useSyncGoal();
+  const unwindGoal = useUnwindGoal();
+
+  const goals = React.useMemo(() => {
+    const list = tab === "mine" ? myGoals : publicGoals;
+    return list.map((goal) => ({
+      ...goal,
+      isOwner: user?.id != null && goal.userId === user.id,
+    }));
+  }, [myGoals, publicGoals, tab, user?.id]);
+
+  const isLoading = tab === "mine" ? myGoalsLoading : publicGoalsLoading;
+
+  const invalidateGoalQueries = React.useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.goals });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.goalsPublic });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.portfolio });
+  }, [queryClient]);
+
+  const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
   const handleCreate = async (data: {
     title: string;
@@ -54,8 +79,34 @@ export const GoalsScreen: React.FC = () => {
         validUntil: Date.now() + 5 * 60 * 1000,
         messages: result.txParams.messages,
       });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.goals });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.portfolio });
+
+      if (result.configureAfterDeploy) {
+        let configured = false;
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          try {
+            const configure = await configureGoal.mutateAsync(result.goal.id);
+            await sendTransaction({
+              validUntil: Date.now() + 5 * 60 * 1000,
+              messages: configure.txParams.messages,
+            });
+            configured = true;
+            break;
+          } catch (error: any) {
+            const code = error?.response?.data?.error?.code;
+            if (code === "GOAL_NOT_READY" && attempt < 5) {
+              await wait(1500);
+              continue;
+            }
+            throw error;
+          }
+        }
+
+        if (!configured) {
+          throw new Error("Goal configuration did not complete");
+        }
+      }
+
+      await invalidateGoalQueries();
       setCreating(false);
       toast.success("Goal created! Let's crush it 🎯");
     } catch (error) {
@@ -78,8 +129,7 @@ export const GoalsScreen: React.FC = () => {
         validUntil: Date.now() + 5 * 60 * 1000,
         messages: result.txParams.messages,
       });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.goals });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.portfolio });
+      await invalidateGoalQueries();
       toast.success(`Deposited ${amountTon} TON`);
       setOpenGoal(null);
     } catch (error: any) {
@@ -100,12 +150,51 @@ export const GoalsScreen: React.FC = () => {
         validUntil: Date.now() + 5 * 60 * 1000,
         messages: result.txParams.messages,
       });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.goals });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.portfolio });
+      await invalidateGoalQueries();
       toast.success("Claim request sent");
       setOpenGoal(null);
     } catch (error: any) {
       const message = error?.response?.data?.error?.message || "Failed to claim goal.";
+      toast.error(message);
+    }
+  };
+
+  const handleSyncGoal = async (goalId: string) => {
+    if (!connected || !address) {
+      toast.error("Connect your wallet first");
+      return;
+    }
+
+    try {
+      const result = await syncGoal.mutateAsync(goalId);
+      await sendTransaction({
+        validUntil: Date.now() + 5 * 60 * 1000,
+        messages: result.txParams.messages,
+      });
+      await invalidateGoalQueries();
+      toast.success(`Synced ${result.amount} TON of live yield`);
+    } catch (error: any) {
+      const message = error?.response?.data?.error?.message || "Failed to sync yield.";
+      toast.error(message);
+    }
+  };
+
+  const handleUnwindGoal = async (goalId: string) => {
+    if (!connected || !address) {
+      toast.error("Connect your wallet first");
+      return;
+    }
+
+    try {
+      const result = await unwindGoal.mutateAsync({ id: goalId, mode: "best-rate" });
+      await sendTransaction({
+        validUntil: Date.now() + 5 * 60 * 1000,
+        messages: result.txParams.messages,
+      });
+      await invalidateGoalQueries();
+      toast.success(`Unstake started for ${result.amount} tsTON`);
+    } catch (error: any) {
+      const message = error?.response?.data?.error?.message || "Failed to start unstake.";
       toast.error(message);
     }
   };
@@ -126,19 +215,38 @@ export const GoalsScreen: React.FC = () => {
         Set savings goals and watch your TON grow. Funds forward to validators for yield.
       </p>
 
+      <div className="bg-muted rounded-2xl p-1 flex mb-4 border-2 border-border">
+        {(["mine", "explore"] as const).map((value) => (
+          <button
+            key={value}
+            onClick={() => setTab(value)}
+            className={cn(
+              "flex-1 py-2 rounded-xl font-display font-bold text-sm capitalize transition-colors press-effect",
+              tab === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground",
+            )}
+          >
+            {value === "mine" ? "My Goals" : "Explore"}
+          </button>
+        ))}
+      </div>
+
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : goals.length === 0 ? (
         <div className="game-card p-6 text-center">
-          <p className="font-display font-bold text-lg">No goals yet</p>
+          <p className="font-display font-bold text-lg">No {tab === "mine" ? "goals yet" : "public goals yet"}</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Create your first savings goal and start growing your TON!
+            {tab === "mine"
+              ? "Create your first savings goal and start growing your TON!"
+              : "No public goals are available right now."}
           </p>
-          <PopButton tone="primary" size="sm" className="mt-3" onClick={() => setCreating(true)} disabled={!connected}>
-            <Plus className="w-4 h-4" /> Create Goal
-          </PopButton>
+          {tab === "mine" ? (
+            <PopButton tone="primary" size="sm" className="mt-3" onClick={() => setCreating(true)} disabled={!connected}>
+              <Plus className="w-4 h-4" /> Create Goal
+            </PopButton>
+          ) : null}
         </div>
       ) : (
         <div className="space-y-3">
@@ -162,15 +270,19 @@ export const GoalsScreen: React.FC = () => {
           onClose={() => setOpenGoal(null)}
           onDeposit={(amount) => handleDepositGoal(openGoal.id, amount)}
           onClaim={() => handleClaimGoal(openGoal.id)}
+          onSync={() => handleSyncGoal(openGoal.id)}
+          onUnwind={() => handleUnwindGoal(openGoal.id)}
           isDepositing={depositGoal.isPending}
           isClaiming={claimGoal.isPending}
+          isSyncing={syncGoal.isPending}
+          isUnwinding={unwindGoal.isPending}
         />
       )}
     </div>
   );
 };
 
-const GoalCard: React.FC<{ goal: Goal; onOpen: () => void }> = ({ goal, onOpen }) => {
+const GoalCard: React.FC<{ goal: Goal & { isOwner?: boolean }; onOpen: () => void }> = ({ goal, onOpen }) => {
   const current = parseFloat(goal.currentTon || "0");
   const target = parseFloat(goal.targetTon || "1");
   const yieldTon = parseFloat(goal.yieldTon || "0");
@@ -185,6 +297,9 @@ const GoalCard: React.FC<{ goal: Goal; onOpen: () => void }> = ({ goal, onOpen }
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-display font-bold truncate">{goal.title}</p>
+            {goal.isOwner ? (
+              <span className="chip border bg-secondary-soft text-secondary-foreground border-secondary/60">Owner</span>
+            ) : null}
             <span
               className={cn(
                 "chip border",
@@ -230,13 +345,17 @@ const GoalCard: React.FC<{ goal: Goal; onOpen: () => void }> = ({ goal, onOpen }
 };
 
 const GoalSheet: React.FC<{
-  goal: Goal;
+  goal: Goal & { isOwner?: boolean };
   onClose: () => void;
   onDeposit: (amount: number) => void;
   onClaim: () => void;
+  onSync: () => void;
+  onUnwind: () => void;
   isDepositing?: boolean;
   isClaiming?: boolean;
-}> = ({ goal, onClose, onDeposit, onClaim, isDepositing, isClaiming }) => {
+  isSyncing?: boolean;
+  isUnwinding?: boolean;
+}> = ({ goal, onClose, onDeposit, onClaim, onSync, onUnwind, isDepositing, isClaiming, isSyncing, isUnwinding }) => {
   const [amount, setAmount] = React.useState(10);
   const presets = [5, 10, 25, 50];
   const current = parseFloat(goal.currentTon || "0");
@@ -285,6 +404,19 @@ const GoalSheet: React.FC<{
             <p className="font-display font-bold tabular-nums text-success-foreground">{yieldTon > 0 ? "+" : ""}{yieldTon.toFixed(2)} TON</p>
           </div>
         </div>
+
+        {goal.strategy === "tonstakers" && goal.isOwner ? (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button className="bg-muted rounded-2xl p-2 border border-border text-left press-effect disabled:opacity-50" onClick={onSync} disabled={isSyncing || !goal.syncYieldTon || parseFloat(goal.syncYieldTon) <= 0}>
+              <p className="text-[10px] uppercase font-bold text-muted-foreground">Sync yield</p>
+              <p className="font-display font-bold tabular-nums">{goal.syncYieldTon ? `+${parseFloat(goal.syncYieldTon).toFixed(2)} TON` : "Up to date"}</p>
+            </button>
+            <button className="bg-muted rounded-2xl p-2 border border-border text-left press-effect disabled:opacity-50" onClick={onUnwind} disabled={isUnwinding || !goal.canUnwind}>
+              <p className="text-[10px] uppercase font-bold text-muted-foreground">Unstake tsTON</p>
+              <p className="font-display font-bold tabular-nums">{goal.tsTonBalance ? `${parseFloat(goal.tsTonBalance).toFixed(2)} tsTON` : "Nothing staked"}</p>
+            </button>
+          </div>
+        ) : null}
 
         <div className="mt-5">
           <p className="font-display font-bold mb-2">Deposit TON</p>

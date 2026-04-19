@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useConfirmJoinDen, useCreateDen, useDens, useMyDens, useJoinDen, useLeaveDen, useUser } from "@/hooks/queries";
+import { useConfirmJoinDen, useCreateDen, useDens, useMyDens, useJoinDen, useLeaveDen, useSyncDen, useUnwindDen, useUser } from "@/hooks/queries";
 import { useWallet } from "@/hooks/useWallet";
 import { queryClient } from "@/App";
 import { queryKeys } from "@/lib/queryKeys";
@@ -35,6 +35,9 @@ type DisplayDen = {
   myCurrentTon?: number;
   myYieldTon?: number;
   canWithdraw?: boolean;
+  canUnwind?: boolean;
+  tsTonBalance?: number;
+  syncYieldTon?: number;
   isOwner?: boolean;
 };
 
@@ -50,6 +53,8 @@ export const NestScreen: React.FC = () => {
   const joinDen = useJoinDen();
   const confirmJoinDen = useConfirmJoinDen();
   const leaveDen = useLeaveDen();
+  const syncDen = useSyncDen();
+  const unwindDen = useUnwindDen();
   const createDen = useCreateDen();
 
   const isLoading = tab === "mine" ? mineLoading : exploreLoading;
@@ -75,9 +80,18 @@ export const NestScreen: React.FC = () => {
           ? parseFloat(d.myYieldTon)
           : 0,
       canWithdraw: d.canWithdraw ?? false,
+      canUnwind: d.canUnwind ?? false,
+      tsTonBalance: parseFloat(d.tsTonBalance || "0"),
+      syncYieldTon: parseFloat(d.syncYieldTon || "0"),
       isOwner: user?.id != null && d.ownerId === user.id,
     }));
   }, [publicDens, myDensData, tab, user?.id]);
+
+  const invalidateNestQueries = React.useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.dens });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.densMine });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.portfolio });
+  }, []);
 
   const handleDeposit = async (denId: string, amountTon: number) => {
     if (!connected || !address) {
@@ -105,9 +119,7 @@ export const NestScreen: React.FC = () => {
         txBoc: txResult.boc,
       });
 
-      await queryClient.invalidateQueries({ queryKey: queryKeys.dens });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.densMine });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.portfolio });
+      await invalidateNestQueries();
 
       toast.success(`Deposited ${amountTon} TON 🦊`);
       setOpenDen(null);
@@ -129,9 +141,7 @@ export const NestScreen: React.FC = () => {
         messages: result.txParams.messages,
       });
 
-      await queryClient.invalidateQueries({ queryKey: queryKeys.dens });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.densMine });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.portfolio });
+      await invalidateNestQueries();
 
       toast.success("Withdraw request sent");
       setOpenDen(null);
@@ -173,6 +183,46 @@ export const NestScreen: React.FC = () => {
       toast.success(result.txParams.messages.length > 0 ? "Nest created successfully" : "Nest imported successfully");
     } catch (error: any) {
       const message = error?.response?.data?.error?.message || "Failed to create Nest.";
+      toast.error(message);
+    }
+  };
+
+  const handleSync = async (denId: string) => {
+    if (!connected || !address) {
+      toast.error("Please connect your wallet first");
+      return;
+    }
+
+    try {
+      const result = await syncDen.mutateAsync(denId);
+      await sendTransaction({
+        validUntil: Date.now() + 5 * 60 * 1000,
+        messages: result.txParams.messages,
+      });
+      await invalidateNestQueries();
+      toast.success(`Synced ${result.amount} TON of live yield`);
+    } catch (error: any) {
+      const message = error?.response?.data?.error?.message || "Failed to sync yield.";
+      toast.error(message);
+    }
+  };
+
+  const handleUnwind = async (denId: string) => {
+    if (!connected || !address) {
+      toast.error("Please connect your wallet first");
+      return;
+    }
+
+    try {
+      const result = await unwindDen.mutateAsync({ denId, mode: "best-rate" });
+      await sendTransaction({
+        validUntil: Date.now() + 5 * 60 * 1000,
+        messages: result.txParams.messages,
+      });
+      await invalidateNestQueries();
+      toast.success(`Unstake started for ${result.amount} tsTON`);
+    } catch (error: any) {
+      const message = error?.response?.data?.error?.message || "Failed to start unstake.";
       toast.error(message);
     }
   };
@@ -264,8 +314,12 @@ export const NestScreen: React.FC = () => {
           onClose={() => setOpenDen(null)}
           onDeposit={(amount) => handleDeposit(openDen.id, amount)}
           onWithdraw={() => handleWithdraw(openDen.id)}
+          onSync={() => handleSync(openDen.id)}
+          onUnwind={() => handleUnwind(openDen.id)}
           isDepositing={joinDen.isPending || confirmJoinDen.isPending}
           isWithdrawing={leaveDen.isPending}
+          isSyncing={syncDen.isPending}
+          isUnwinding={unwindDen.isPending}
         />
       )}
 
@@ -345,9 +399,13 @@ const NestSheet: React.FC<{
   onClose: () => void;
   onDeposit: (amount: number) => void;
   onWithdraw: () => void;
+  onSync: () => void;
+  onUnwind: () => void;
   isDepositing?: boolean;
   isWithdrawing?: boolean;
-}> = ({ den, onClose, onDeposit, onWithdraw, isDepositing, isWithdrawing }) => {
+  isSyncing?: boolean;
+  isUnwinding?: boolean;
+}> = ({ den, onClose, onDeposit, onWithdraw, onSync, onUnwind, isDepositing, isWithdrawing, isSyncing, isUnwinding }) => {
   const [amount, setAmount] = React.useState(25);
   const presets = [10, 25, 50, 100];
 
@@ -413,6 +471,19 @@ const NestSheet: React.FC<{
               <p className="text-[10px] uppercase font-bold text-muted-foreground">Yield</p>
               <p className="font-display font-bold tabular-nums text-success-foreground">{den.myYieldTon && den.myYieldTon > 0 ? "+" : ""}{(den.myYieldTon ?? 0).toFixed(2)} TON</p>
             </div>
+          </div>
+        ) : null}
+
+        {den.isOwner && den.strategy === "steady" ? (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button className="bg-muted rounded-2xl p-2 border border-border text-left press-effect disabled:opacity-50" onClick={onSync} disabled={isSyncing || (den.syncYieldTon ?? 0) <= 0}>
+              <p className="text-[10px] uppercase font-bold text-muted-foreground">Sync yield</p>
+              <p className="font-display font-bold tabular-nums">{(den.syncYieldTon ?? 0) > 0 ? `+${(den.syncYieldTon ?? 0).toFixed(2)} TON` : "Up to date"}</p>
+            </button>
+            <button className="bg-muted rounded-2xl p-2 border border-border text-left press-effect disabled:opacity-50" onClick={onUnwind} disabled={isUnwinding || !den.canUnwind}>
+              <p className="text-[10px] uppercase font-bold text-muted-foreground">Unstake tsTON</p>
+              <p className="font-display font-bold tabular-nums">{(den.tsTonBalance ?? 0) > 0 ? `${(den.tsTonBalance ?? 0).toFixed(2)} tsTON` : "Nothing staked"}</p>
+            </button>
           </div>
         ) : null}
 

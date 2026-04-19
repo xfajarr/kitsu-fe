@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient, type Goal } from '@/lib/api';
 import { queryKeys } from '@/lib/queryKeys';
 import { useAuthToken } from '@/hooks/useAuthToken';
@@ -12,6 +12,16 @@ export function useGoals() {
       return response.data.data.goals;
     },
     enabled: !!token,
+  });
+}
+
+export function usePublicGoals() {
+  return useQuery({
+    queryKey: queryKeys.goalsPublic,
+    queryFn: async (): Promise<Goal[]> => {
+      const response = await apiClient.getPublicGoals();
+      return response.data.data.goals;
+    },
   });
 }
 
@@ -61,11 +71,38 @@ export function useDepositGoal() {
   });
 }
 
+export function useConfigureGoal() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.configureGoal(id);
+      return response.data.data.configure;
+    },
+  });
+}
+
 export function useClaimGoal() {
   return useMutation({
     mutationFn: async (id: string) => {
       const response = await apiClient.claimGoal(id);
       return response.data.data.claim;
+    },
+  });
+}
+
+export function useSyncGoal() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.syncGoal(id);
+      return response.data.data.sync;
+    },
+  });
+}
+
+export function useUnwindGoal() {
+  return useMutation({
+    mutationFn: async ({ id, mode }: { id: string; mode?: 'standard' | 'instant' | 'best-rate' }) => {
+      const response = await apiClient.unwindGoal(id, mode);
+      return response.data.data.unwind;
     },
   });
 }

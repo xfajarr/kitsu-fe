@@ -10,6 +10,7 @@ export const queryKeys = {
   
   // Goals
   goals: ['goals'] as const,
+  goalsPublic: ['goals', 'public'] as const,
   goal: (id: string) => ['goals', id] as const,
   
   // Dens

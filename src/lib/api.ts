@@ -65,6 +65,7 @@ export interface User {
 // Goal types
 export interface Goal {
   id: string;
+  userId?: string;
   title: string;
   description: string | null;
   emoji: string | null;
@@ -81,7 +82,13 @@ export interface Goal {
   totalPrincipalTon?: string;
   totalYieldTon?: string;
   canClaim?: boolean;
+  canUnwind?: boolean;
+  tsTonBalance?: string | null;
+  projectedVaultValueTon?: string | null;
+  liquidTonBalance?: string;
+  syncYieldTon?: string | null;
   isOnchainSynced?: boolean;
+  isLiveValue?: boolean;
   lastStrategySyncTime?: string | null;
   dueDate: string | null;
   isArchived: boolean;
@@ -138,7 +145,13 @@ export interface Den {
   myYieldTon?: string;
   mySharesTon?: string;
   canWithdraw?: boolean;
+  canUnwind?: boolean;
+  tsTonBalance?: string;
+  projectedVaultValueTon?: string;
+  liquidTonBalance?: string;
+  syncYieldTon?: string;
   isOnchainSynced?: boolean;
+  isLiveValue?: boolean;
   lastStrategySyncTime?: string | null;
 }
 
@@ -207,9 +220,15 @@ export const apiClient = {
   // Goals
   getGoals: () =>
     api.get<ApiResponse<{ goals: Goal[] }>>('/goals'),
+
+  getPublicGoals: () =>
+    api.get<ApiResponse<{ goals: Goal[] }>>('/goals/public'),
   
   createGoal: (data: { title: string; description?: string; emoji?: string; targetTon: string; visibility: 'private' | 'public'; strategy: 'tonstakers' | 'stonfi'; dueDate?: string }) =>
-    api.post<ApiResponse<{ goal: Goal; txParams: TonConnectTxParams }>>('/goals', data),
+    api.post<ApiResponse<{ goal: Goal; txParams: TonConnectTxParams; configureAfterDeploy?: boolean }>>('/goals', data),
+
+  configureGoal: (id: string) =>
+    api.post<ApiResponse<{ configure: { goalId: string; goalAddress: string; txParams: TonConnectTxParams } }>>(`/goals/${id}/configure`),
   
   updateGoal: (id: string, data: Partial<{ title: string; description: string; emoji: string; targetTon: string; visibility: 'private' | 'public'; strategy: 'tonstakers' | 'stonfi'; dueDate: string | null }>) =>
     api.patch<ApiResponse<{ goal: Goal }>>(`/goals/${id}`, data),
@@ -222,6 +241,12 @@ export const apiClient = {
 
   claimGoal: (id: string) =>
     api.post<ApiResponse<{ claim: { goalId: string; txParams: TonConnectTxParams } }>>(`/goals/${id}/claim`),
+
+  syncGoal: (id: string) =>
+    api.post<ApiResponse<{ sync: { goalId: string; amount: string; txParams: TonConnectTxParams } }>>(`/goals/${id}/sync`),
+
+  unwindGoal: (id: string, mode: 'standard' | 'instant' | 'best-rate' = 'best-rate') =>
+    api.post<ApiResponse<{ unwind: { goalId: string; amount: string; mode: string; txParams: TonConnectTxParams } }>>(`/goals/${id}/unwind`, { mode }),
 
   // Dens
   getDens: () =>
@@ -241,6 +266,12 @@ export const apiClient = {
 
   confirmJoinDen: (id: string, data: { confirmationToken: string; txBoc: string }) =>
     api.post<ApiResponse<{ deposit: DenDepositConfirmation }>>(`/dens/${id}/join/confirm`, data),
+
+  syncDen: (id: string) =>
+    api.post<ApiResponse<{ sync: { denId: string; amount: string; txParams: TonConnectTxParams } }>>(`/dens/${id}/sync`),
+
+  unwindDen: (id: string, mode: 'standard' | 'instant' | 'best-rate' = 'best-rate') =>
+    api.post<ApiResponse<{ unwind: { denId: string; amount: string; mode: string; txParams: TonConnectTxParams } }>>(`/dens/${id}/unwind`, { mode }),
   
   leaveDen: (id: string) =>
     api.post<ApiResponse<WithdrawResponse>>(`/dens/${id}/leave`),

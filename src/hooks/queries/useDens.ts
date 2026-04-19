@@ -76,6 +76,24 @@ export function useConfirmJoinDen() {
   });
 }
 
+export function useSyncDen() {
+  return useMutation({
+    mutationFn: async (denId: string) => {
+      const response = await apiClient.syncDen(denId);
+      return response.data.data.sync;
+    },
+  });
+}
+
+export function useUnwindDen() {
+  return useMutation({
+    mutationFn: async ({ denId, mode }: { denId: string; mode?: 'standard' | 'instant' | 'best-rate' }) => {
+      const response = await apiClient.unwindDen(denId, mode);
+      return response.data.data.unwind;
+    },
+  });
+}
+
 export function useLeaveDen() {
   const queryClient = useQueryClient();
   
