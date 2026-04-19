@@ -1,8 +1,9 @@
 import * as React from "react";
-import { Flame, Trophy } from "lucide-react";
+import { User } from "lucide-react";
 import tonCoin from "@/assets/ton-coin.png";
 import { cn } from "@/lib/utils";
 import { WalletButton } from "@/components/WalletButton";
+import type { TabKey } from "@/components/BottomNav";
 
 type Props = {
   level: number;
@@ -10,10 +11,19 @@ type Props = {
   xpNext: number;
   streak: number;
   username: string;
+  connected?: boolean;
+  onNavigate?: (tab: TabKey) => void;
 };
 
-export const TopBar: React.FC<Props> = ({ level, xp, xpNext, streak, username }) => {
+export const TopBar: React.FC<Props> = ({ level, xp, xpNext, streak, username, connected, onNavigate }) => {
   const pct = Math.min(100, Math.round((xp / xpNext) * 100));
+  
+  const handleProfileClick = () => {
+    if (connected) {
+      onNavigate?.("profile");
+    }
+  };
+  
   return (
     <header className="sticky top-0 z-20 bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="mx-auto max-w-md px-4 pt-4 pb-3 flex items-center gap-3">
@@ -27,15 +37,13 @@ export const TopBar: React.FC<Props> = ({ level, xp, xpNext, streak, username })
           </span>
         </div>
 
-        {/* XP */}
+        {/* Username only - XP/streak/trophy hidden for now */}
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline justify-between gap-2">
             <p className="font-display font-bold text-sm truncate">Hi, {username}</p>
-            <p className="text-[11px] font-bold text-muted-foreground tabular-nums">
-              {xp}/{xpNext} XP
-            </p>
           </div>
-          <div className="mt-1 h-2 rounded-full bg-muted overflow-hidden border border-border">
+          {/* Hidden XP bar - keeping for future, dimmed */}
+          <div className="mt-1 h-2 rounded-full bg-muted overflow-hidden border border-border opacity-30">
             <div
               className={cn("h-full bg-secondary-deep transition-all duration-500")}
               style={{ width: `${pct}%` }}
@@ -43,14 +51,16 @@ export const TopBar: React.FC<Props> = ({ level, xp, xpNext, streak, username })
           </div>
         </div>
 
-        {/* Streak */}
-        <div className="shrink-0 flex items-center gap-1 bg-warning/30 border-2 border-warning/60 text-warning-foreground rounded-2xl px-2.5 py-1.5">
-          <Flame className="w-4 h-4" />
-          <span className="font-display font-bold text-sm tabular-nums">{streak}</span>
-        </div>
-        <div className="shrink-0 flex items-center gap-1 bg-secondary-soft border-2 border-secondary/70 text-secondary-foreground rounded-2xl px-2.5 py-1.5">
-          <Trophy className="w-4 h-4" />
-        </div>
+        {/* Profile Button - only show when connected */}
+        {connected && (
+          <button
+            onClick={handleProfileClick}
+            className="shrink-0 p-2 rounded-xl bg-muted border border-border press-effect"
+            title="Profile"
+          >
+            <User className="w-5 h-5" />
+          </button>
+        )}
         
         {/* Wallet Button */}
         <WalletButton />

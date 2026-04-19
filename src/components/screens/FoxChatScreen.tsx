@@ -75,7 +75,7 @@ export const FoxChatScreen: React.FC = () => {
             alt="Foxy the AI fox mascot"
             width={64}
             height={64}
-            className="w-14 h-14 rounded-2xl bg-primary-soft border-2 border-primary/40 object-contain animate-float"
+            className="w-14 h-14 rounded-2xl bg-primary-soft border-2 border-primary/40 object-contain"
           />
           <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-success border-2 border-background" />
         </div>

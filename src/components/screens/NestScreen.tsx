@@ -11,11 +11,14 @@ import {
   TrendingUp,
   Crown,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useCreateDen, useDens, useMyDens, useJoinDen, useLeaveDen, useUser } from "@/hooks/queries";
 import { useWallet } from "@/hooks/useWallet";
+import { queryClient } from "@/App";
+import { queryKeys } from "@/lib/queryKeys";
 
 type DisplayDen = {
   id: string;
@@ -135,6 +138,18 @@ export const NestScreen: React.FC = () => {
     }
   };
 
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [lastUpdated, setLastUpdated] = React.useState<Date | null>(null);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await queryClient.invalidateQueries({ queryKey: queryKeys.dens });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.densMine });
+    setLastUpdated(new Date());
+    setIsRefreshing(false);
+    toast.success("Refreshed");
+  };
+
   return (
     <div className="px-4 pt-2 pb-28 animate-fade-in">
       <header className="mb-3 px-1 flex items-center justify-between gap-3">
@@ -142,12 +157,27 @@ export const NestScreen: React.FC = () => {
           <Home className="w-6 h-6 text-primary-deep" />
           Nest Vaults
         </h1>
-        {user?.isAdmin ? (
-          <PopButton size="sm" tone="primary" onClick={() => setCreatingNest(true)} disabled={!connected || createDen.isPending}>
-            <Plus className="w-4 h-4" /> Create Nest
-          </PopButton>
-        ) : null}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="p-2 rounded-xl bg-muted border border-border press-effect disabled:opacity-50"
+            title="Refresh data"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
+          {user?.isAdmin && (
+            <PopButton size="sm" tone="primary" onClick={() => setCreatingNest(true)} disabled={!connected || createDen.isPending}>
+              <Plus className="w-4 h-4" /> Create Nest
+            </PopButton>
+          )}
+        </div>
       </header>
+      {lastUpdated && (
+        <p className="text-xs text-muted-foreground px-1 -mt-3 mb-2">
+          Updated {lastUpdated.toLocaleTimeString()}
+        </p>
+      )}
 
       <p className="text-sm text-muted-foreground px-1 mb-4">
         Public vaults anyone can deposit into. Join a nest and grow together.

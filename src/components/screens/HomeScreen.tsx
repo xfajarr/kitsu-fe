@@ -1,12 +1,9 @@
 import * as React from "react";
 import { FoxBuddy } from "@/components/FoxBuddy";
 import { PopButton } from "@/components/PopButton";
-import { XPBar } from "@/components/XPBar";
 import { ArrowUpRight, Sparkles, ChevronRight, Vault, MessageCircleHeart, Wallet, Loader2 } from "lucide-react";
-import treasureChest from "@/assets/treasure-chest.png";
 import type { TabKey } from "@/components/BottomNav";
-import { usePortfolio, useQuests } from "@/hooks/queries";
-import { useAuthToken } from "@/hooks/useAuthToken";
+import { usePortfolio } from "@/hooks/queries";
 
 type Props = {
   onNavigate: (tab: TabKey) => void;
@@ -29,6 +26,20 @@ function AssetIcon({ symbol }: { symbol: string }) {
       </div>
     );
   }
+  if (s === "NEST") {
+    return (
+      <div className={`${wrap} bg-primary-soft border-primary/40`}>
+        <span className="text-xl">🏢</span>
+      </div>
+    );
+  }
+  if (s === "GOAL") {
+    return (
+      <div className={`${wrap} bg-secondary-soft border-secondary/40`}>
+        <span className="text-xl">🎯</span>
+      </div>
+    );
+  }
   return (
     <div className={wrap}>
       <img src="/placeholder.svg" alt="" className="w-7 h-7 object-contain opacity-80" />
@@ -37,12 +48,9 @@ function AssetIcon({ symbol }: { symbol: string }) {
 }
 
 export const HomeScreen: React.FC<Props> = ({ onNavigate }) => {
-  const token = useAuthToken();
   const { data: portfolioData, isLoading: portfolioLoading } = usePortfolio();
-  const { data: questsData, isLoading: questsLoading } = useQuests();
 
   const portfolio = portfolioData?.portfolio;
-  const quests = questsData?.quests || [];
 
   const greeting = React.useMemo(() => {
     const tips = [
@@ -53,8 +61,7 @@ export const HomeScreen: React.FC<Props> = ({ onNavigate }) => {
     return tips[new Date().getDay() % tips.length];
   }, []);
 
-  const loading = !!token && (portfolioLoading || questsLoading);
-  if (loading) {
+  if (portfolioLoading) {
     return (
       <div className="px-4 pt-2 pb-28 flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -83,11 +90,11 @@ export const HomeScreen: React.FC<Props> = ({ onNavigate }) => {
               {portfolio?.dayChangePct?.toFixed(2) || "0.00"}%
             </span>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Updated just now · TON network</p>
+          {/* <p className="text-xs text-muted-foreground mt-1">Updated just now · TON network</p> */}
 
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <PopButton tone="primary" size="sm" onClick={() => onNavigate("dens")}>
-              <Vault className="w-4 h-4" /> Money Dens
+            <PopButton tone="primary" size="sm" onClick={() => onNavigate("nest")}>
+              <Vault className="w-4 h-4" /> Nest Vaults
             </PopButton>
             <PopButton tone="secondary" size="sm" onClick={() => onNavigate("fox")}>
               <MessageCircleHeart className="w-4 h-4" /> Ask Foxy
@@ -108,18 +115,18 @@ export const HomeScreen: React.FC<Props> = ({ onNavigate }) => {
         />
       </section>
 
-      {/* Asset balances */}
+      {/* Wealth Growth */}
       <section>
         <div className="flex items-center justify-between mb-2 px-1">
           <h2 className="font-display text-lg font-bold flex items-center gap-2">
             <Wallet className="w-5 h-5 text-accent-deep" />
-            My coins
+            Wealth Growth
           </h2>
           <button
-            onClick={() => onNavigate("profile")}
+            onClick={() => onNavigate("nest")}
             className="text-xs font-bold text-muted-foreground inline-flex items-center"
           >
-            View all <ChevronRight className="w-3 h-3" />
+            View nests <ChevronRight className="w-3 h-3" />
           </button>
         </div>
 
@@ -163,53 +170,19 @@ export const HomeScreen: React.FC<Props> = ({ onNavigate }) => {
         )}
       </section>
 
-      {/* Daily quests */}
-      <section>
+      {/* Daily quests - Coming Soon */}
+      <section className="relative overflow-hidden">
         <div className="flex items-center justify-between mb-2 px-1">
           <h2 className="font-display text-lg font-bold flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-secondary-deep" />
             Daily quests
+            <span className="chip bg-warning/30 text-warning-foreground border border-warning/60 text-[10px]">Coming Soon</span>
           </h2>
-          <button
-            onClick={() => onNavigate("profile")}
-            className="text-xs font-bold text-muted-foreground inline-flex items-center"
-          >
-            View all <ChevronRight className="w-3 h-3" />
-          </button>
         </div>
-
-        {token && quests.length > 0 ? (
-          <div className="space-y-3">
-            {quests.slice(0, 3).map((q) => (
-              <article
-                key={q.id}
-                className="game-card p-4 flex items-center gap-3"
-              >
-                <div className="w-12 h-12 rounded-2xl bg-secondary-soft border-2 border-secondary/60 flex items-center justify-center shrink-0">
-                  <img src={treasureChest} alt="" width={48} height={48} loading="lazy" className="w-9 h-9" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-display font-bold text-sm truncate">{q.title}</p>
-                    <span className="chip bg-secondary-soft text-secondary-foreground border border-secondary/60">
-                      +{q.reward} XP
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate">{q.hint}</p>
-                  <XPBar value={q.progress} className="mt-2" tone="secondary" />
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : !token ? (
-          <div className="game-card p-6 text-center">
-            <p className="text-muted-foreground text-sm">Connect your wallet to see daily quests and earn XP.</p>
-          </div>
-        ) : (
-          <div className="game-card p-6 text-center">
-            <p className="text-muted-foreground text-sm">Complete quests to earn XP!</p>
-          </div>
-        )}
+        <div className="h-24 rounded-2xl bg-muted/50 border border-border flex items-center justify-center">
+          <p className="text-muted-foreground text-sm">Quests coming soon!</p>
+        </div>
+        <div className="absolute inset-0 bg-background/40 backdrop-blur-sm rounded-2xl" />
       </section>
     </div>
   );

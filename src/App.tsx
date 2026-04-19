@@ -8,7 +8,7 @@ import { WalletAuthSync } from "@/components/WalletAuthSync";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
-const queryClient = new QueryClient({
+export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutes

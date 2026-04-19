@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useDens, useMyDens, useJoinDen, useUser } from "@/hooks/queries";
+import { useDens, useMyDens, useJoinDen, useLeaveDen, useUser } from "@/hooks/queries";
 import { useWallet } from "@/hooks/useWallet";
 import type { Den } from "@/lib/api";
 
@@ -43,6 +43,7 @@ export const DensScreen: React.FC = () => {
   const { data: publicDens, isLoading: exploreLoading } = useDens();
   const { data: myDensData, isLoading: mineLoading } = useMyDens();
   const joinDen = useJoinDen();
+  const leaveDen = useLeaveDen();
 
   const isLoading = tab === "mine" ? mineLoading : exploreLoading;
 
@@ -68,7 +69,7 @@ export const DensScreen: React.FC = () => {
     try {
       const result = await joinDen.mutateAsync({
         denId,
-        amountTon: amountTon.toString(),
+        amountTon: amountTon.toFixed(8),
       });
       await sendTransaction({
         validUntil: Date.now() + 5 * 60 * 1000,
@@ -80,6 +81,25 @@ export const DensScreen: React.FC = () => {
       setOpenDen(null);
     } catch (error) {
       toast.error("Failed to deposit. Please try again.");
+    }
+  };
+
+  const handleLeave = async (denId: string) => {
+    if (!connected || !address) {
+      toast.error("Please connect your wallet first");
+      return;
+    }
+
+    try {
+      const result = await leaveDen.mutateAsync(denId);
+      await sendTransaction({
+        validUntil: Date.now() + 5 * 60 * 1000,
+        messages: result.txParams.messages,
+      });
+      toast.success("Withdrawn from den");
+      setOpenDen(null);
+    } catch (error) {
+      toast.error("Failed to withdraw. Please try again.");
     }
   };
 
@@ -141,7 +161,9 @@ export const DensScreen: React.FC = () => {
           den={openDen}
           onClose={() => setOpenDen(null)}
           onDeposit={(amount) => handleDeposit(openDen.id, amount)}
+          onLeave={() => handleLeave(openDen.id)}
           isDepositing={joinDen.isPending}
+          isLeaving={leaveDen.isPending}
         />
       )}
     </div>
@@ -215,10 +237,12 @@ const DenSheet: React.FC<{
   den: DisplayDen;
   onClose: () => void;
   onDeposit: (amount: number) => void;
+  onLeave: () => void;
   isDepositing?: boolean;
-}> = ({ den, onClose, onDeposit, isDepositing }) => {
+  isLeaving?: boolean;
+}> = ({ den, onClose, onDeposit, onLeave, isDepositing, isLeaving }) => {
   const [amount, setAmount] = React.useState(25);
-  const presets = [10, 25, 50, 100];
+  const presets = [1, 5, 10, 25];
 
   return (
     <div
@@ -280,7 +304,7 @@ const DenSheet: React.FC<{
                   amount === p ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border",
                 )}
               >
-                ${p}
+                {p} TON
               </button>
             ))}
           </div>
@@ -310,6 +334,20 @@ const DenSheet: React.FC<{
               `Save ${amount} TON into this Den`
             )}
           </PopButton>
+          
+          {den.myDeposit !== undefined && den.myDeposit > 0 && (
+            <button 
+              className="w-full mt-2 bg-card text-foreground rounded-2xl py-3 font-display font-bold border-2 border-border press-effect disabled:opacity-50" 
+              onClick={onLeave}
+              disabled={isLeaving}
+            >
+              {isLeaving ? (
+                <Loader2 className="w-4 h-4 animate-spin inline" />
+              ) : (
+                `Withdraw ${den.myDeposit.toFixed(2)} TON`
+              )}
+            </button>
+          )}
           <p className="text-[11px] text-muted-foreground text-center mt-2">
             Foxy keeps your funds growing safely on the TON network.
           </p>

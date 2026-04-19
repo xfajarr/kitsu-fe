@@ -187,6 +187,12 @@ export const apiClient = {
   deleteGoal: (id: string) =>
     api.delete<ApiResponse<{ archived: boolean }>>(`/goals/${id}`),
 
+  depositGoal: (id: string, amountTon: string) =>
+    api.post<ApiResponse<{ deposit: { goalId: string; amount: string; txParams: TonConnectTxParams } }>>(`/goals/${id}/deposit`, { amountTon }),
+
+  claimGoal: (id: string) =>
+    api.post<ApiResponse<{ claim: { goalId: string; txParams: TonConnectTxParams } }>>(`/goals/${id}/claim`),
+
   // Dens
   getDens: () =>
     api.get<ApiResponse<{ dens: Den[] }>>('/dens'),

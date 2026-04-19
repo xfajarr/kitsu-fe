@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useGoals, useCreateGoal, useDeposit, useWithdraw, useUser } from "@/hooks/queries";
+import { useGoals, useCreateGoal, useDepositGoal, useClaimGoal, useUser } from "@/hooks/queries";
 import { useWallet } from "@/hooks/useWallet";
 import type { Goal } from "@/lib/api";
 
@@ -24,8 +24,8 @@ export const GoalsScreen: React.FC = () => {
 
   const { data: goals = [], isLoading } = useGoals();
   const createGoal = useCreateGoal();
-  const deposit = useDeposit();
-  const withdraw = useWithdraw();
+  const depositGoal = useDepositGoal();
+  const claimGoal = useClaimGoal();
 
   const handleCreate = async (data: {
     title: string;
@@ -65,9 +65,8 @@ export const GoalsScreen: React.FC = () => {
     }
 
     try {
-      const result = await deposit.mutateAsync({
-        type: "goal",
-        targetId: goalId,
+      const result = await depositGoal.mutateAsync({
+        id: goalId,
         amountTon: amountTon.toFixed(8),
       });
       await sendTransaction({
@@ -89,11 +88,7 @@ export const GoalsScreen: React.FC = () => {
     }
 
     try {
-      const result = await withdraw.mutateAsync({
-        type: "goal",
-        sourceId: goalId,
-        amountTon: "0",
-      });
+      const result = await claimGoal.mutateAsync(goalId);
       await sendTransaction({
         validUntil: Date.now() + 5 * 60 * 1000,
         messages: result.txParams.messages,
@@ -158,8 +153,8 @@ export const GoalsScreen: React.FC = () => {
           onClose={() => setOpenGoal(null)}
           onDeposit={(amount) => handleDepositGoal(openGoal.id, amount)}
           onClaim={() => handleClaimGoal(openGoal.id)}
-          isDepositing={deposit.isPending}
-          isClaiming={withdraw.isPending}
+          isDepositing={depositGoal.isPending}
+          isClaiming={claimGoal.isPending}
         />
       )}
     </div>
