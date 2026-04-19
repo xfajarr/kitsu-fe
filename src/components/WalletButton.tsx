@@ -10,12 +10,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Wallet, ChevronDown, Copy, LogOut, Check, ExternalLink } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { notifyAuthChanged } from "@/hooks/useAuthToken";
 
 export function WalletButton() {
-  const { address, connected, connecting, connect, disconnect, shortenAddress } = useWallet();
+  const { address, chain, connected, connecting, connect, disconnect, shortenAddress } = useWallet();
   const [copied, setCopied] = React.useState(false);
+
+  const explorerBaseUrl = chain === "-3" ? "https://testnet.tonviewer.com" : "https://tonviewer.com";
 
   const handleCopyAddress = React.useCallback(() => {
     if (address) {
@@ -57,6 +58,7 @@ export function WalletButton() {
           <div className="flex flex-col space-y-1">
             <p className="text-xs text-muted-foreground">Connected Wallet</p>
             <p className="text-sm font-mono">{shortenAddress(address || "")}</p>
+            <p className="text-xs text-muted-foreground">{chain === "-3" ? "Testnet" : "Mainnet"}</p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
@@ -69,7 +71,7 @@ export function WalletButton() {
           {copied ? "Copied!" : "Copy Address"}
         </DropdownMenuItem>
         <DropdownMenuItem
-          onClick={() => window.open(`https://tonviewer.com/${address}`, "_blank")}
+          onClick={() => window.open(`${explorerBaseUrl}/${address}`, "_blank")}
           className="gap-2 cursor-pointer"
         >
           <ExternalLink className="w-4 h-4" />

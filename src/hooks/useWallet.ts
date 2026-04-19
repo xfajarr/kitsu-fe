@@ -1,13 +1,17 @@
 import { useTonConnectModal, useTonConnectUI, useTonWallet } from '@tonconnect/ui-react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
+import { useWalletNetwork } from '@/hooks/useWalletNetwork';
+import type { WalletNetwork } from '@/providers/WalletNetworkProvider';
 
 export interface UseWalletReturn {
   address: string | undefined;
   chain: string | undefined;
+  preferredNetwork: WalletNetwork;
   connected: boolean;
   connecting: boolean;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
+  setPreferredNetwork: (network: WalletNetwork) => void;
   sendTransaction: (tx: {
     validUntil: number;
     messages: Array<{
@@ -24,20 +28,26 @@ export function useWallet(): UseWalletReturn {
   const [tonConnectUI] = useTonConnectUI();
   const { open } = useTonConnectModal();
   const wallet = useTonWallet();
+  const { network, setNetwork, chainId } = useWalletNetwork();
 
   const connected = useMemo(() => !!wallet, [wallet]);
   const address = useMemo(() => wallet?.account.address, [wallet]);
   const chain = useMemo(() => wallet?.account.chain, [wallet]);
   const connecting = useMemo(() => tonConnectUI.connecting, [tonConnectUI.connecting]);
 
+  useEffect(() => {
+    tonConnectUI.setConnectionNetwork(chainId);
+  }, [chainId, tonConnectUI]);
+
   const connect = useCallback(async () => {
     try {
+      tonConnectUI.setConnectionNetwork(chainId);
       open();
     } catch (error) {
       console.error('Failed to connect wallet:', error);
       throw error;
     }
-  }, [open]);
+  }, [chainId, open, tonConnectUI]);
 
   const disconnect = useCallback(async () => {
     try {
@@ -62,13 +72,18 @@ export function useWallet(): UseWalletReturn {
     }
 
     try {
-      const result = await tonConnectUI.sendTransaction(tx);
+      const validUntil = tx.validUntil > 1_000_000_000_000 ? Math.floor(tx.validUntil / 1000) : tx.validUntil;
+      const result = await tonConnectUI.sendTransaction({
+        ...tx,
+        validUntil,
+        network: chainId,
+      });
       return result;
     } catch (error) {
       console.error('Failed to send transaction:', error);
       throw error;
     }
-  }, [wallet, tonConnectUI]);
+  }, [chainId, wallet, tonConnectUI]);
 
   const shortenAddress = useCallback((addr: string) => {
     if (!addr) return '';
@@ -78,10 +93,12 @@ export function useWallet(): UseWalletReturn {
   return {
     address,
     chain,
+    preferredNetwork: network,
     connected,
     connecting,
     connect,
     disconnect,
+    setPreferredNetwork: setNetwork,
     sendTransaction,
     shortenAddress,
   };

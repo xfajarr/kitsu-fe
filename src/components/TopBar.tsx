@@ -2,6 +2,7 @@ import * as React from "react";
 import { User } from "lucide-react";
 import tonCoin from "@/assets/ton-coin.png";
 import { cn } from "@/lib/utils";
+import { NetworkSwitcher } from "@/components/NetworkSwitcher";
 import { WalletButton } from "@/components/WalletButton";
 import type { TabKey } from "@/components/BottomNav";
 
@@ -62,6 +63,8 @@ export const TopBar: React.FC<Props> = ({ level, xp, xpNext, streak, username, c
           </button>
         )}
         
+        <NetworkSwitcher />
+
         {/* Wallet Button */}
         <WalletButton />
       </div>
