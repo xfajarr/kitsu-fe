@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { ArrowLeftRight, Loader2, RefreshCw, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useTonConnectUI } from "@tonconnect/ui-react";
@@ -258,138 +259,184 @@ export const OmnistonSwapButton: React.FC<SwapButtonProps> = ({
     setIsOpen(false);
   };
 
-  if (isOpen) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
-        <div className="relative w-full max-w-md rounded-3xl border-2 border-border bg-card p-5">
+  const modal = isOpen
+    ? createPortal(
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="stonfi-swap-title"
+        >
           <button
+            type="button"
+            aria-label="Close swap"
+            className="absolute inset-0 cursor-default"
             onClick={handleClose}
-            className="absolute right-4 top-4 rounded-xl bg-muted px-3 py-1.5 font-display font-bold press-effect"
+          />
+          <div
+            className="relative z-[1] w-full max-w-md rounded-3xl border-2 border-border bg-card p-5 shadow-lg pointer-events-auto"
+            onClick={(e) => e.stopPropagation()}
           >
-            Close
-          </button>
+            <button
+              type="button"
+              onClick={handleClose}
+              className="absolute right-4 top-4 z-[2] rounded-xl bg-muted px-3 py-1.5 font-display font-bold press-effect"
+            >
+              Close
+            </button>
 
-          <div className="mb-4">
-            <p className="font-display text-xl font-bold">STON.fi Swap</p>
-            <p className="text-xs text-muted-foreground mt-1">{networkLabel} · Wallet-aware quote and swap</p>
-          </div>
-
-          <div className="mb-4 flex gap-2 rounded-2xl border-2 border-border bg-muted p-1">
-            {(["swap", "widget"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={cn(
-                  "flex-1 rounded-xl py-2 text-sm font-display font-bold capitalize press-effect",
-                  activeTab === tab ? "bg-card text-foreground" : "text-muted-foreground"
-                )}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-
-          {activeTab === "swap" ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-2xl border border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
-                <span>Supported assets</span>
-                <button onClick={() => void refreshConfig()} className="inline-flex items-center gap-1 font-display font-bold text-foreground" disabled={isLoadingConfig}>
-                  <RefreshCw className={cn("w-3.5 h-3.5", isLoadingConfig && "animate-spin")} /> Refresh
-                </button>
-              </div>
-
-              <label className="block">
-                <span className="text-xs font-bold uppercase text-muted-foreground">From</span>
-                <select value={offerToken} onChange={(e) => setOfferToken(e.target.value)} className="mt-1 w-full rounded-2xl border-2 border-border bg-muted px-3 py-3 font-display font-bold outline-none">
-                  {tokens.map((token) => (
-                    <option key={token.address} value={token.address}>{tokenLabel(token)}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="text-xs font-bold uppercase text-muted-foreground">To</span>
-                <select value={askToken} onChange={(e) => setAskToken(e.target.value)} className="mt-1 w-full rounded-2xl border-2 border-border bg-muted px-3 py-3 font-display font-bold outline-none">
-                  {tokens.map((token) => (
-                    <option key={token.address} value={token.address}>{tokenLabel(token)}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="text-xs font-bold uppercase text-muted-foreground">Amount</span>
-                <div className="mt-1 flex items-center gap-2 rounded-2xl border-2 border-border bg-muted px-3 py-3">
-                  <input
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    type="number"
-                    min="0"
-                    step="any"
-                    className="flex-1 bg-transparent font-display font-bold outline-none"
-                  />
-                  <span className="text-sm font-display font-bold text-muted-foreground">{selectedOfferToken?.symbol || "TOKEN"}</span>
-                </div>
-              </label>
-
-              {quote ? (
-                <div className="rounded-2xl border border-border bg-muted p-3">
-                  <p className="text-xs font-bold uppercase text-muted-foreground">Best quote</p>
-                  <p className="mt-1 font-display text-lg font-bold">{quote.offerDisplay} {quote.offerToken.symbol} → {quote.askDisplay} {quote.askToken.symbol}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Resolver: {quote.resolverName}</p>
-                </div>
-              ) : null}
-
-              {tradeStatus ? (
-                <div className="rounded-2xl border border-border bg-muted p-3 text-sm text-muted-foreground">{tradeStatus}</div>
-              ) : null}
-
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  onClick={() => void handleQuote()}
-                  disabled={quoteLoading || !offerToken || !askToken || !amount}
-                  className="rounded-2xl border-2 border-border bg-card py-3 font-display font-bold press-effect disabled:opacity-50"
-                >
-                  {quoteLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Get Quote"}
-                </button>
-                <button
-                  onClick={() => void handleSwap()}
-                  disabled={swapLoading || !quote || !connected}
-                  className="rounded-2xl bg-accent py-3 font-display font-bold text-accent-foreground press-effect disabled:opacity-50"
-                >
-                  {swapLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Swap"}
-                </button>
-              </div>
-
-              {!connected ? (
-                <div className="rounded-2xl border border-border bg-muted px-3 py-2 text-xs text-muted-foreground inline-flex items-center gap-2">
-                  <Wallet className="w-4 h-4" /> Connect wallet before swapping.
-                </div>
-              ) : null}
+            <div className="mb-4">
+              <p id="stonfi-swap-title" className="font-display text-xl font-bold">
+                STON.fi Swap
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">{networkLabel} · Wallet-aware quote and swap</p>
             </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">Fallback STON.fi widget using your current TonConnect session.</p>
-              {widgetLoading ? (
-                <div className="flex min-h-[500px] items-center justify-center rounded-2xl border border-border bg-muted">
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                </div>
-              ) : null}
-              <div ref={containerRef} className="min-h-[500px] rounded-2xl overflow-hidden border border-border bg-card" />
+
+            <div className="mb-4 flex gap-2 rounded-2xl border-2 border-border bg-muted p-1">
+              {(["swap", "widget"] as const).map((tab) => (
+                <button
+                  type="button"
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={cn(
+                    "flex-1 rounded-xl py-2 text-sm font-display font-bold capitalize press-effect",
+                    activeTab === tab ? "bg-card text-foreground" : "text-muted-foreground",
+                  )}
+                >
+                  {tab}
+                </button>
+              ))}
             </div>
-          )}
-        </div>
-      </div>
-    );
-  }
+
+            {activeTab === "swap" ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-2xl border border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
+                  <span>Supported assets</span>
+                  <button
+                    type="button"
+                    onClick={() => void refreshConfig()}
+                    className="inline-flex items-center gap-1 font-display font-bold text-foreground"
+                    disabled={isLoadingConfig}
+                  >
+                    <RefreshCw className={cn("w-3.5 h-3.5", isLoadingConfig && "animate-spin")} /> Refresh
+                  </button>
+                </div>
+
+                <label className="block">
+                  <span className="text-xs font-bold uppercase text-muted-foreground">From</span>
+                  <select
+                    value={offerToken}
+                    onChange={(e) => setOfferToken(e.target.value)}
+                    className="mt-1 w-full rounded-2xl border-2 border-border bg-muted px-3 py-3 font-display font-bold outline-none"
+                  >
+                    {tokens.map((token) => (
+                      <option key={token.address} value={token.address}>
+                        {tokenLabel(token)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-bold uppercase text-muted-foreground">To</span>
+                  <select
+                    value={askToken}
+                    onChange={(e) => setAskToken(e.target.value)}
+                    className="mt-1 w-full rounded-2xl border-2 border-border bg-muted px-3 py-3 font-display font-bold outline-none"
+                  >
+                    {tokens.map((token) => (
+                      <option key={token.address} value={token.address}>
+                        {tokenLabel(token)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-bold uppercase text-muted-foreground">Amount</span>
+                  <div className="mt-1 flex items-center gap-2 rounded-2xl border-2 border-border bg-muted px-3 py-3">
+                    <input
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      type="number"
+                      min="0"
+                      step="any"
+                      className="flex-1 bg-transparent font-display font-bold outline-none"
+                    />
+                    <span className="text-sm font-display font-bold text-muted-foreground">{selectedOfferToken?.symbol || "TOKEN"}</span>
+                  </div>
+                </label>
+
+                {quote ? (
+                  <div className="rounded-2xl border border-border bg-muted p-3">
+                    <p className="text-xs font-bold uppercase text-muted-foreground">Best quote</p>
+                    <p className="mt-1 font-display text-lg font-bold">
+                      {quote.offerDisplay} {quote.offerToken.symbol} → {quote.askDisplay} {quote.askToken.symbol}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">Resolver: {quote.resolverName}</p>
+                  </div>
+                ) : null}
+
+                {tradeStatus ? (
+                  <div className="rounded-2xl border border-border bg-muted p-3 text-sm text-muted-foreground">{tradeStatus}</div>
+                ) : null}
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => void handleQuote()}
+                    disabled={quoteLoading || !offerToken || !askToken || !amount}
+                    className="rounded-2xl border-2 border-border bg-card py-3 font-display font-bold press-effect disabled:opacity-50"
+                  >
+                    {quoteLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Get Quote"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSwap()}
+                    disabled={swapLoading || !quote || !connected}
+                    className="rounded-2xl bg-accent py-3 font-display font-bold text-accent-foreground press-effect disabled:opacity-50"
+                  >
+                    {swapLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Swap"}
+                  </button>
+                </div>
+
+                {!connected ? (
+                  <div className="rounded-2xl border border-border bg-muted px-3 py-2 text-xs text-muted-foreground inline-flex items-center gap-2">
+                    <Wallet className="w-4 h-4" /> Connect wallet before swapping.
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">Fallback STON.fi widget using your current TonConnect session.</p>
+                {widgetLoading ? (
+                  <div className="flex min-h-[500px] items-center justify-center rounded-2xl border border-border bg-muted">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  </div>
+                ) : null}
+                <div ref={containerRef} className="min-h-[500px] rounded-2xl overflow-hidden border border-border bg-card" />
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body,
+      )
+    : null;
 
   return (
-    <button
-      onClick={() => setIsOpen(true)}
-      className={`flex items-center justify-center gap-2 bg-accent text-accent-foreground rounded-2xl py-3 px-4 font-display font-bold press-effect pop-shadow-accent ${className}`}
-    >
-      <ArrowLeftRight className="w-5 h-5" />
-      {children || "Convert"}
-    </button>
+    <>
+      {!isOpen ? (
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className={`flex items-center justify-center gap-2 bg-accent text-accent-foreground rounded-2xl py-3 px-4 font-display font-bold press-effect pop-shadow-accent ${className}`}
+        >
+          <ArrowLeftRight className="w-5 h-5" />
+          {children || "Convert"}
+        </button>
+      ) : null}
+      {modal}
+    </>
   );
 };
 
