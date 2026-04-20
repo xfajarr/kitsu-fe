@@ -26,6 +26,12 @@ export const queryKeys = {
   
   // Transactions
   transactions: ['transactions'] as const,
+
+  // STON.fi
+  stonfiConfig: (network: string) => ['stonfi', 'config', network] as const,
+  stonfiAssets: (network: string) => ['stonfi', 'assets', network] as const,
+  stonfiPools: (network: string) => ['stonfi', 'pools', network] as const,
+  stonfiWalletAssets: (network: string, address: string) => ['stonfi', 'wallet-assets', network, address] as const,
   
   // Balance
   balance: (address: string) => ['balance', address] as const,

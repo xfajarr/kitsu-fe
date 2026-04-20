@@ -4,7 +4,8 @@ import { PopButton } from "@/components/PopButton";
 import { OmnistonSwapButton } from "@/components/OmnistonSwap";
 import { ArrowUpRight, Sparkles, ChevronRight, Vault, MessageCircleHeart, Wallet, Loader2 } from "lucide-react";
 import type { TabKey } from "@/components/BottomNav";
-import { usePortfolio } from "@/hooks/queries";
+import { usePortfolio, useStonfiConfig, useStonfiPools, useStonfiWalletAssets } from "@/hooks/queries";
+import { useWalletNetwork } from "@/hooks/useWalletNetwork";
 
 type Props = {
   onNavigate: (tab: TabKey) => void;
@@ -50,6 +51,10 @@ function AssetIcon({ symbol }: { symbol: string }) {
 
 export const HomeScreen: React.FC<Props> = ({ onNavigate }) => {
   const { data: portfolioData, isLoading: portfolioLoading } = usePortfolio();
+  const { label: networkLabel } = useWalletNetwork();
+  const { data: stonfiConfig } = useStonfiConfig();
+  const { data: stonfiPools = [], isLoading: poolsLoading } = useStonfiPools();
+  const { data: stonfiWalletAssets = [], isLoading: walletAssetsLoading } = useStonfiWalletAssets();
 
   const portfolio = portfolioData?.portfolio;
 
@@ -176,6 +181,67 @@ export const HomeScreen: React.FC<Props> = ({ onNavigate }) => {
             <p className="text-muted-foreground text-sm">No assets yet. Connect your wallet to see your portfolio!</p>
           </div>
         )}
+      </section>
+
+      <section>
+        <div className="flex items-center justify-between mb-2 px-1">
+          <h2 className="font-display text-lg font-bold flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-primary-deep" />
+            STON.fi on {networkLabel}
+          </h2>
+          <span className="text-[11px] font-bold uppercase text-muted-foreground">
+            {stonfiConfig?.supported.quote ? "Swap Ready" : "Read Only"}
+          </span>
+        </div>
+
+        <div className="game-card p-4 space-y-4">
+          <div>
+            <p className="text-xs font-bold uppercase text-muted-foreground mb-2">Supported Pairs</p>
+            {poolsLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {stonfiPools.slice(0, 4).map((pool) => (
+                  <div key={pool.id} className="rounded-2xl border border-border bg-muted px-3 py-3">
+                    <p className="font-display font-bold text-sm">{pool.label}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{pool.kind}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <p className="text-xs font-bold uppercase text-muted-foreground mb-2">Wallet Assets on STON.fi</p>
+            {walletAssetsLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              </div>
+            ) : stonfiWalletAssets.length > 0 ? (
+              <div className="space-y-2">
+                {stonfiWalletAssets.map((asset) => (
+                  <div key={asset.token.address} className="flex items-center justify-between rounded-2xl border border-border bg-muted px-3 py-2">
+                    <div>
+                      <p className="font-display font-bold text-sm">{asset.token.symbol}</p>
+                      <p className="text-xs text-muted-foreground">{asset.token.name}</p>
+                    </div>
+                    <p className="font-display font-bold tabular-nums text-sm">{Number(asset.balanceDisplay).toLocaleString(undefined, { maximumFractionDigits: 4 })}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-border bg-muted px-3 py-4 text-sm text-muted-foreground text-center">
+                No supported STON.fi assets in this wallet on {networkLabel}.
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-border bg-primary-soft/50 px-3 py-3 text-xs text-muted-foreground">
+            Use <span className="font-bold text-foreground">Convert Tokens</span> above to quote and route swaps with the active network.
+          </div>
+        </div>
       </section>
 
       {/* Daily quests - Coming Soon */}

@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Globe2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ import { useWallet } from '@/hooks/useWallet';
 import type { WalletNetwork } from '@/providers/WalletNetworkProvider';
 
 export function NetworkSwitcher() {
+  const queryClient = useQueryClient();
   const { chain, connected, disconnect, preferredNetwork, setPreferredNetwork } = useWallet();
 
   const handleSwitch = React.useCallback(
@@ -33,6 +35,7 @@ export function NetworkSwitcher() {
       }
 
       setPreferredNetwork(nextNetwork);
+      queryClient.clear();
 
       toast.success(
         needsReconnect
@@ -40,7 +43,7 @@ export function NetworkSwitcher() {
           : `Switched to ${nextNetwork}.`
       );
     },
-    [chain, connected, disconnect, preferredNetwork, setPreferredNetwork]
+    [chain, connected, disconnect, preferredNetwork, queryClient, setPreferredNetwork]
   );
 
   return (

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { WALLET_NETWORK_STORAGE_KEY } from '@/providers/WalletNetworkProvider';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -13,9 +14,11 @@ export const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('auth_token');
+    const network = localStorage.getItem(WALLET_NETWORK_STORAGE_KEY) || 'testnet';
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    config.headers['X-TON-Network'] = network;
     return config;
   },
   (error) => {
@@ -198,6 +201,58 @@ export interface Transaction {
   createdAt: string;
 }
 
+export interface StonfiToken {
+  symbol: string;
+  name: string;
+  address: string;
+  decimals: number;
+  kind: 'ton' | 'jetton';
+  network: 'testnet' | 'mainnet';
+}
+
+export interface StonfiQuote {
+  quoteId: string;
+  resolverId: string;
+  resolverName: string;
+  offerToken: StonfiToken;
+  askToken: StonfiToken;
+  offerUnits: string;
+  askUnits: string;
+  offerDisplay: string;
+  askDisplay: string;
+  protocolFeeUnits: string;
+  referrerFeeUnits: string;
+  rawQuote: unknown;
+}
+
+export interface StonfiConfig {
+  network: 'testnet' | 'mainnet';
+  chainId: '-3' | '-239';
+  tokens: StonfiToken[];
+  omnistonApiUrl: string;
+  supported: {
+    quote: boolean;
+    buildTransfer: boolean;
+    trackTrade: boolean;
+    widget: boolean;
+  };
+}
+
+export interface StonfiPool {
+  id: string;
+  network: 'testnet' | 'mainnet';
+  token0: StonfiToken;
+  token1: StonfiToken;
+  label: string;
+  kind: 'swap-pair';
+}
+
+export interface StonfiWalletAsset {
+  token: StonfiToken;
+  balanceUnits: string;
+  balanceDisplay: string;
+}
+
 // API methods
 export const apiClient = {
   // Auth
@@ -216,6 +271,28 @@ export const apiClient = {
   
   getLeaderboard: () =>
     api.get<ApiResponse<{ leaderboard: Array<{ rank: number; userId: string; username: string; xp: number; level: number }> }>>('/users/leaderboard'),
+
+  // STON.fi
+  getStonfiConfig: () =>
+    api.get<ApiResponse<{ config: StonfiConfig }>>('/stonfi/config'),
+
+  getStonfiAssets: () =>
+    api.get<ApiResponse<{ assets: StonfiToken[] }>>('/stonfi/assets'),
+
+  getStonfiPools: () =>
+    api.get<ApiResponse<{ pools: StonfiPool[] }>>('/stonfi/pools'),
+
+  getStonfiWalletAssets: (address: string) =>
+    api.get<ApiResponse<{ assets: StonfiWalletAsset[] }>>(`/stonfi/wallet-assets/${address}`),
+
+  quoteStonfiSwap: (data: { offerToken: string; askToken: string; amount: string }) =>
+    api.post<ApiResponse<{ quote: StonfiQuote }>>('/stonfi/quote', data),
+
+  buildStonfiSwap: (data: { offerToken: string; askToken: string; sourceAddress: string; destinationAddress?: string; quote: unknown }) =>
+    api.post<ApiResponse<{ swap: { quoteId: string; txParams: TonConnectTxParams } }>>('/stonfi/build-transfer', data),
+
+  trackStonfiSwap: (data: { quoteId: string; walletAddress: string; txBoc: string }) =>
+    api.post<ApiResponse<{ trade: { txHash: string; status: string } }>>('/stonfi/track', data),
 
   // Goals
   getGoals: () =>

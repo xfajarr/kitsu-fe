@@ -21,3 +21,6 @@ export * from './useTransactions';
 
 // Chat hooks
 export * from './useChat';
+
+// STON.fi hooks
+export * from './useStonfi';

@@ -7,7 +7,7 @@ type WalletNetworkContextValue = {
   setNetwork: (network: WalletNetwork) => void;
 };
 
-const STORAGE_KEY = 'kitsu.wallet-network';
+export const WALLET_NETWORK_STORAGE_KEY = 'kitsu.wallet-network';
 
 const WalletNetworkContext = React.createContext<WalletNetworkContextValue | null>(null);
 
@@ -16,7 +16,7 @@ function getInitialNetwork(): WalletNetwork {
     return 'testnet';
   }
 
-  const stored = window.localStorage.getItem(STORAGE_KEY);
+  const stored = window.localStorage.getItem(WALLET_NETWORK_STORAGE_KEY);
   return stored === 'mainnet' ? 'mainnet' : 'testnet';
 }
 
@@ -26,7 +26,7 @@ export function WalletNetworkProvider({ children }: { children: React.ReactNode 
   const setNetwork = React.useCallback((nextNetwork: WalletNetwork) => {
     setNetworkState(nextNetwork);
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(STORAGE_KEY, nextNetwork);
+      window.localStorage.setItem(WALLET_NETWORK_STORAGE_KEY, nextNetwork);
     }
   }, []);
 
