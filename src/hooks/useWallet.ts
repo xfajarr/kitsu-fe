@@ -36,8 +36,12 @@ export function useWallet(): UseWalletReturn {
   const connecting = useMemo(() => tonConnectUI.connecting, [tonConnectUI.connecting]);
 
   useEffect(() => {
+    // TON Connect throws if setConnectionNetwork runs while a session exists; sync after disconnect.
+    if (wallet) {
+      return;
+    }
     tonConnectUI.setConnectionNetwork(chainId);
-  }, [chainId, tonConnectUI]);
+  }, [chainId, tonConnectUI, wallet]);
 
   const connect = useCallback(async () => {
     try {

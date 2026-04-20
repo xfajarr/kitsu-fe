@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Globe2 } from 'lucide-react';
+import { Globe2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,50 +17,82 @@ import type { WalletNetwork } from '@/providers/WalletNetworkProvider';
 
 export function NetworkSwitcher() {
   const queryClient = useQueryClient();
-  const { chain, connected, disconnect, preferredNetwork, setPreferredNetwork } = useWallet();
+  const { connected, disconnect, preferredNetwork, setPreferredNetwork } = useWallet();
+  const [isSwitching, setIsSwitching] = React.useState(false);
 
   const handleSwitch = React.useCallback(
     async (nextNetwork: WalletNetwork) => {
-      if (preferredNetwork === nextNetwork) {
+      if (preferredNetwork === nextNetwork || isSwitching) {
         return;
       }
 
-      const nextChain = nextNetwork === 'mainnet' ? '-239' : '-3';
-      const needsReconnect = connected && chain !== nextChain;
+      setIsSwitching(true);
+      const wasConnected = connected;
+      let loadingId: string | number | undefined;
 
-      if (needsReconnect) {
-        localStorage.removeItem('auth_token');
-        notifyAuthChanged();
-        await disconnect();
+      try {
+        // TON Connect forbids changing connection network while connected; disconnect first.
+        if (wasConnected) {
+          loadingId = toast.loading('Disconnecting wallet…');
+          localStorage.removeItem('auth_token');
+          notifyAuthChanged();
+          await disconnect();
+          toast.dismiss(loadingId);
+          loadingId = undefined;
+        }
+
+        setPreferredNetwork(nextNetwork);
+        queryClient.clear();
+
+        toast.success(
+          wasConnected
+            ? `Switched to ${nextNetwork}. Connect your wallet again on this network.`
+            : `Switched to ${nextNetwork}.`
+        );
+      } catch (e) {
+        if (loadingId !== undefined) {
+          toast.dismiss(loadingId);
+        }
+        console.error(e);
+        toast.error('Could not switch network. Try again.');
+      } finally {
+        setIsSwitching(false);
       }
-
-      setPreferredNetwork(nextNetwork);
-      queryClient.clear();
-
-      toast.success(
-        needsReconnect
-          ? `Switched to ${nextNetwork}. Reconnect wallet on the new network.`
-          : `Switched to ${nextNetwork}.`
-      );
     },
-    [chain, connected, disconnect, preferredNetwork, queryClient, setPreferredNetwork]
+    [connected, disconnect, isSwitching, preferredNetwork, queryClient, setPreferredNetwork]
   );
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="gap-2 bg-card border-2 border-border hover:bg-muted font-display font-bold px-3">
-          <Globe2 className="w-4 h-4" />
+        <Button
+          variant="outline"
+          disabled={isSwitching}
+          className="gap-2 bg-card border-2 border-border hover:bg-muted font-display font-bold px-3"
+        >
+          {isSwitching ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Globe2 className="w-4 h-4" />
+          )}
           <span className="hidden sm:inline">{preferredNetwork === 'mainnet' ? 'Mainnet' : 'Testnet'}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
         <DropdownMenuLabel className="font-display">Network</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => void handleSwitch('testnet')} className="cursor-pointer">
+        <DropdownMenuItem
+          disabled={isSwitching}
+          onClick={() => void handleSwitch('testnet')}
+          className="cursor-pointer"
+        >
           Testnet
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => void handleSwitch('mainnet')} className="cursor-pointer">
+        <DropdownMenuItem
+          disabled={isSwitching}
+          onClick={() => void handleSwitch('mainnet')}
+          className="cursor-pointer"
+        >
           Mainnet
         </DropdownMenuItem>
       </DropdownMenuContent>
