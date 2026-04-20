@@ -7,6 +7,13 @@ import { apiClient, type StonfiConfig, type StonfiQuote, type StonfiToken } from
 import { useWallet } from "@/hooks/useWallet";
 import { useWalletNetwork } from "@/hooks/useWalletNetwork";
 import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 declare global {
   interface Window {
@@ -322,89 +329,110 @@ export const OmnistonSwapButton: React.FC<SwapButtonProps> = ({
                   </button>
                 </div>
 
-                <label className="block">
-                  <span className="text-xs font-bold uppercase text-muted-foreground">From</span>
-                  <select
-                    value={offerToken}
-                    onChange={(e) => setOfferToken(e.target.value)}
-                    className="mt-1 w-full rounded-2xl border-2 border-border bg-muted px-3 py-3 font-display font-bold outline-none"
-                  >
-                    {tokens.map((token) => (
-                      <option key={token.address} value={token.address}>
-                        {tokenLabel(token)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="block">
-                  <span className="text-xs font-bold uppercase text-muted-foreground">To</span>
-                  <select
-                    value={askToken}
-                    onChange={(e) => setAskToken(e.target.value)}
-                    className="mt-1 w-full rounded-2xl border-2 border-border bg-muted px-3 py-3 font-display font-bold outline-none"
-                  >
-                    {tokens.map((token) => (
-                      <option key={token.address} value={token.address}>
-                        {tokenLabel(token)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="block">
-                  <span className="text-xs font-bold uppercase text-muted-foreground">Amount</span>
-                  <div className="mt-1 flex items-center gap-2 rounded-2xl border-2 border-border bg-muted px-3 py-3">
-                    <input
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      type="number"
-                      min="0"
-                      step="any"
-                      className="flex-1 bg-transparent font-display font-bold outline-none"
-                    />
-                    <span className="text-sm font-display font-bold text-muted-foreground">{selectedOfferToken?.symbol || "TOKEN"}</span>
+                {isLoadingConfig ? (
+                  <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-muted py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">Loading token list…</p>
                   </div>
-                </label>
-
-                {quote ? (
-                  <div className="rounded-2xl border border-border bg-muted p-3">
-                    <p className="text-xs font-bold uppercase text-muted-foreground">Best quote</p>
-                    <p className="mt-1 font-display text-lg font-bold">
-                      {quote.offerDisplay} {quote.offerToken.symbol} → {quote.askDisplay} {quote.askToken.symbol}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">Resolver: {quote.resolverName}</p>
+                ) : tokens.length === 0 ? (
+                  <div className="rounded-2xl border border-border bg-muted px-3 py-6 text-center text-sm text-muted-foreground">
+                    No STON.fi assets returned for this network. Try Refresh or check the API.
                   </div>
-                ) : null}
+                ) : (
+                  <>
+                    <div className="block">
+                      <span className="text-xs font-bold uppercase text-muted-foreground">From</span>
+                      <Select value={offerToken} onValueChange={setOfferToken}>
+                        <SelectTrigger
+                          type="button"
+                          className="mt-1 h-auto min-h-[48px] w-full rounded-2xl border-2 border-border bg-muted px-3 py-3 font-display font-bold"
+                        >
+                          <SelectValue placeholder={tokenLabel(selectedOfferToken)} />
+                        </SelectTrigger>
+                        <SelectContent className="z-[300] max-h-[min(280px,50vh)]" position="popper">
+                          {tokens.map((token) => (
+                            <SelectItem key={token.address} value={token.address} className="font-display">
+                              {tokenLabel(token)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                {tradeStatus ? (
-                  <div className="rounded-2xl border border-border bg-muted p-3 text-sm text-muted-foreground">{tradeStatus}</div>
-                ) : null}
+                    <div className="block">
+                      <span className="text-xs font-bold uppercase text-muted-foreground">To</span>
+                      <Select value={askToken} onValueChange={setAskToken}>
+                        <SelectTrigger
+                          type="button"
+                          className="mt-1 h-auto min-h-[48px] w-full rounded-2xl border-2 border-border bg-muted px-3 py-3 font-display font-bold"
+                        >
+                          <SelectValue placeholder={tokenLabel(selectedAskToken)} />
+                        </SelectTrigger>
+                        <SelectContent className="z-[300] max-h-[min(280px,50vh)]" position="popper">
+                          {tokens.map((token) => (
+                            <SelectItem key={token.address} value={token.address} className="font-display">
+                              {tokenLabel(token)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => void handleQuote()}
-                    disabled={quoteLoading || !offerToken || !askToken || !amount}
-                    className="rounded-2xl border-2 border-border bg-card py-3 font-display font-bold press-effect disabled:opacity-50"
-                  >
-                    {quoteLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Get Quote"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleSwap()}
-                    disabled={swapLoading || !quote || !connected}
-                    className="rounded-2xl bg-accent py-3 font-display font-bold text-accent-foreground press-effect disabled:opacity-50"
-                  >
-                    {swapLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Swap"}
-                  </button>
-                </div>
+                    <label className="block">
+                      <span className="text-xs font-bold uppercase text-muted-foreground">Amount</span>
+                      <div className="mt-1 flex items-center gap-2 rounded-2xl border-2 border-border bg-muted px-3 py-3">
+                        <input
+                          value={amount}
+                          onChange={(e) => setAmount(e.target.value)}
+                          type="number"
+                          min="0"
+                          step="any"
+                          className="flex-1 bg-transparent font-display font-bold outline-none"
+                        />
+                        <span className="text-sm font-display font-bold text-muted-foreground">{selectedOfferToken?.symbol || "TOKEN"}</span>
+                      </div>
+                    </label>
 
-                {!connected ? (
-                  <div className="rounded-2xl border border-border bg-muted px-3 py-2 text-xs text-muted-foreground inline-flex items-center gap-2">
-                    <Wallet className="w-4 h-4" /> Connect wallet before swapping.
-                  </div>
-                ) : null}
+                    {quote ? (
+                      <div className="rounded-2xl border border-border bg-muted p-3">
+                        <p className="text-xs font-bold uppercase text-muted-foreground">Best quote</p>
+                        <p className="mt-1 font-display text-lg font-bold">
+                          {quote.offerDisplay} {quote.offerToken.symbol} → {quote.askDisplay} {quote.askToken.symbol}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">Resolver: {quote.resolverName}</p>
+                      </div>
+                    ) : null}
+
+                    {tradeStatus ? (
+                      <div className="rounded-2xl border border-border bg-muted p-3 text-sm text-muted-foreground">{tradeStatus}</div>
+                    ) : null}
+
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => void handleQuote()}
+                        disabled={quoteLoading || !offerToken || !askToken || !amount}
+                        className="rounded-2xl border-2 border-border bg-card py-3 font-display font-bold press-effect disabled:opacity-50"
+                      >
+                        {quoteLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Get Quote"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleSwap()}
+                        disabled={swapLoading || !quote || !connected}
+                        className="rounded-2xl bg-accent py-3 font-display font-bold text-accent-foreground press-effect disabled:opacity-50"
+                      >
+                        {swapLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Swap"}
+                      </button>
+                    </div>
+
+                    {!connected ? (
+                      <div className="rounded-2xl border border-border bg-muted px-3 py-2 text-xs text-muted-foreground inline-flex items-center gap-2">
+                        <Wallet className="w-4 h-4" /> Connect wallet before swapping.
+                      </div>
+                    ) : null}
+                  </>
+                )}
               </div>
             ) : (
               <div className="space-y-3">

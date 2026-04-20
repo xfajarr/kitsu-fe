@@ -43,6 +43,18 @@ export function useStonfiPools() {
   });
 }
 
+/** Vetted high-liquidity STON.fi mainnet pairs (TON / USD₮ / STON); does not follow wallet network. */
+export function useStonfiRecommendedPools() {
+  return useQuery({
+    queryKey: queryKeys.stonfiRecommendedPools,
+    queryFn: async (): Promise<StonfiPool[]> => {
+      const response = await apiClient.getStonfiRecommendedPools();
+      return response.data.data.pools;
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
 export function useStonfiWalletAssets() {
   const { network } = useWalletNetwork();
   const { address, connected } = useWallet();

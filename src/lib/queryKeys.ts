@@ -31,6 +31,8 @@ export const queryKeys = {
   stonfiConfig: (network: string) => ['stonfi', 'config', network] as const,
   stonfiAssets: (network: string) => ['stonfi', 'assets', network] as const,
   stonfiPools: (network: string) => ['stonfi', 'pools', network] as const,
+  /** Curated mainnet reference pools (always mainnet-backed). */
+  stonfiRecommendedPools: ['stonfi', 'recommended-pools'] as const,
   stonfiWalletAssets: (network: string, address: string) => ['stonfi', 'wallet-assets', network, address] as const,
   
   // Balance

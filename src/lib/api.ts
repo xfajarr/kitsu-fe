@@ -282,6 +282,10 @@ export const apiClient = {
   getStonfiPools: () =>
     api.get<ApiResponse<{ pools: StonfiPool[] }>>('/stonfi/pools'),
 
+  /** Curated TON / USD₮ / STON mainnet pools (always mainnet, independent of wallet network). */
+  getStonfiRecommendedPools: () =>
+    api.get<ApiResponse<{ pools: StonfiPool[]; network: 'mainnet' }>>('/stonfi/recommended-pools'),
+
   getStonfiWalletAssets: (address: string) =>
     api.get<ApiResponse<{ assets: StonfiWalletAsset[] }>>(`/stonfi/wallet-assets/${address}`),
 

@@ -4,7 +4,7 @@ import { PopButton } from "@/components/PopButton";
 import { OmnistonSwapButton } from "@/components/OmnistonSwap";
 import { ArrowUpRight, Sparkles, ChevronRight, Vault, MessageCircleHeart, Wallet, Loader2 } from "lucide-react";
 import type { TabKey } from "@/components/BottomNav";
-import { usePortfolio, useStonfiConfig, useStonfiPools, useStonfiWalletAssets } from "@/hooks/queries";
+import { usePortfolio, useStonfiConfig, useStonfiRecommendedPools, useStonfiWalletAssets } from "@/hooks/queries";
 import { useWalletNetwork } from "@/hooks/useWalletNetwork";
 
 type Props = {
@@ -53,10 +53,10 @@ export const HomeScreen: React.FC<Props> = ({ onNavigate }) => {
   const { data: portfolioData, isLoading: portfolioLoading } = usePortfolio();
   const { label: networkLabel } = useWalletNetwork();
   const { data: stonfiConfig } = useStonfiConfig();
-  const { data: stonfiPools = [], isLoading: poolsLoading } = useStonfiPools();
+  const { data: safeMainnetPools = [], isLoading: safePoolsLoading } = useStonfiRecommendedPools();
   const { data: stonfiWalletAssets = [], isLoading: walletAssetsLoading } = useStonfiWalletAssets();
 
-  const portfolio = portfolioData?.portfolio;
+  const portfolio = portfolioData;
 
   const greeting = React.useMemo(() => {
     const tips = [
@@ -196,19 +196,29 @@ export const HomeScreen: React.FC<Props> = ({ onNavigate }) => {
 
         <div className="game-card p-4 space-y-4">
           <div>
-            <p className="text-xs font-bold uppercase text-muted-foreground mb-2">Supported Pairs</p>
-            {poolsLoading ? (
+            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Recommended pools (mainnet)</p>
+              <span className="text-[10px] font-bold uppercase text-primary-deep">High liquidity</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mb-2">
+              Reference pairs on STON.fi mainnet (TON · USD₮ · STON). Swaps still use your active network.
+            </p>
+            {safePoolsLoading ? (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="w-5 h-5 animate-spin text-primary" />
               </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                {stonfiPools.slice(0, 4).map((pool) => (
+            ) : safeMainnetPools.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {safeMainnetPools.map((pool) => (
                   <div key={pool.id} className="rounded-2xl border border-border bg-muted px-3 py-3">
                     <p className="font-display font-bold text-sm">{pool.label}</p>
                     <p className="text-xs text-muted-foreground mt-1">{pool.kind}</p>
                   </div>
                 ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-border bg-muted px-3 py-4 text-sm text-muted-foreground text-center">
+                Could not load reference pools right now.
               </div>
             )}
           </div>
